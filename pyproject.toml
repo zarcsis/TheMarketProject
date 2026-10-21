@@ -1,0 +1,45 @@
+[project]
+name = "marketbot"
+version = "0.1.0"
+description = "Research trading bot for a small Binance account, operated from Claude Code sessions."
+readme = "README.md"
+license = "MIT"
+authors = [
+    { name = "Oleksii Moskalenko", email = "alfacentavra.a@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "cryptography>=50.0.2",
+    "httpx>=0.28.1",
+    "pydantic>=2.14.1",
+    "pydantic-settings>=2.16.1",
+    "typer>=0.27.3",
+]
+
+[project.scripts]
+mb = "marketbot.cli:app"
+
+[build-system]
+requires = ["uv_build>=0.13.1,<0.14.0"]
+build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "ASYNC", "S"]
+ignore = ["S101"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests use documented example credentials.
+"tests/**" = ["S105", "S106"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.17.1",
+]
