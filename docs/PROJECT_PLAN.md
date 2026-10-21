@@ -78,10 +78,10 @@ Anything inside the account: spot, margin, USDⓈ-M futures, Simple Earn, Conver
 ### Practical constraints
 
 - **Minimum order size.** Most spot and futures symbols have a minimum notional of 5 USDT. Futures majors are higher: as of 2026-10-21, the BTCUSDT perpetual requires 50 USDT and the ETHUSDT perpetual 20 USDT. With 100 USDT of capital, BTC and ETH perpetual positions are therefore coarse, and altcoin perpetuals are the practical venue. The bot always reads limits from `exchangeInfo` filters.
-- **Fees (VIP0, verify in Phase 0).**
+- **Fees (VIP0, verified on 2026-10-21).**
   - Spot: 0.10% maker and taker.
   - USDⓈ-M futures: 0.02% maker, 0.05% taker.
-  - Holding BNB gives a fee discount.
+  - Paying fees in BNB gives a discount, and it is enabled for both spot and futures. The bot keeps a small BNB balance for fees and counts it in equity.
 - **Latency.** The bot runs on a home PC with about 100–300 ms round trip, so strategies work on minute timeframes or slower. There is no high-frequency trading or market making.
 - **Claude's reaction time** is minutes, so the bot handles everything that needs a response in seconds.
 - **Jurisdiction.** Futures and margin availability depends on the account's country and on completing Binance's futures questionnaire.
@@ -453,7 +453,7 @@ TheMarketProject/
   - Simple Earn positions.
 - To do: verify the current API details, namely conditional orders and the testnet and demo-trading endpoints.
 
-**Gate:** `mb check` passes with the real key, and withdrawals are confirmed disabled.
+**Gate:** `mb check` passes with the real key, and withdrawals are confirmed disabled. Passed on 2026-10-21.
 
 ### Phase 1: Exchange adapter, data, research baseline
 
@@ -566,6 +566,6 @@ TheMarketProject/
 | 1 | What happens at session end | Close all positions and cancel all orders. | Adopted as default |
 | 2 | Window anchor | 24 hours from the first session start. | Adopted as default |
 | 3 | Project-level stop | Pause and review when equity falls below 70 USDT. | Adopted as default |
-| 4 | Availability of futures and margin | Expected to be available. | Verified by `mb check` in Phase 0 |
+| 4 | Availability of futures and margin | Available. The futures account is in one-way, single-asset mode. | Verified on 2026-10-21 |
 | 5 | Remote control | Telegram alerts and a `/stop` command. | Optional, later |
 | 6 | Repository | Public; MIT license; commits go directly to `main` with CI. | Adopted |
