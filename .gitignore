@@ -7,9 +7,9 @@ secrets/
 *.key
 
 # Runtime data: raw logs and state may contain account identifiers
-data/
-logs/
-state/
+/data/
+/logs/
+/state/
 *.db
 *.sqlite
 *.sqlite3
