@@ -107,8 +107,7 @@ async def test_download_stores_months_and_caches_absence(tmp_path: Path) -> None
         stats = await archive.download(
             client,
             "klines",
-            ["BTCUSDT"],
-            months,
+            [("BTCUSDT", month) for month in months],
             root=tmp_path,
             interval="5m",
             today=date(2026, 10, 21),
@@ -122,8 +121,7 @@ async def test_download_stores_months_and_caches_absence(tmp_path: Path) -> None
         again = await archive.download(
             client,
             "klines",
-            ["BTCUSDT"],
-            months,
+            [("BTCUSDT", month) for month in months],
             root=tmp_path,
             interval="5m",
             today=date(2026, 10, 21),
@@ -145,7 +143,7 @@ async def test_download_counts_checksum_failure(tmp_path: Path) -> None:
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         stats = await archive.download(
-            client, "klines", ["BTCUSDT"], [Month(2026, 9)], root=tmp_path, interval="5m"
+            client, "klines", [("BTCUSDT", Month(2026, 9))], root=tmp_path, interval="5m"
         )
     assert stats.failed == 1
     assert not list(tmp_path.rglob("*.parquet"))  # noqa: ASYNC240

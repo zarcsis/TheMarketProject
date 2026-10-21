@@ -224,14 +224,14 @@ class DownloadStats:
 async def download(
     client: httpx.AsyncClient,
     dataset: Dataset,
-    symbols: Iterable[str],
-    months: Iterable[Month],
+    jobs: Iterable[tuple[str, Month]],
     *,
     root: Path = DEFAULT_ROOT,
     interval: str | None = None,
     concurrency: int = 8,
     today: date | None = None,
 ) -> DownloadStats:
+    """Fetch each (symbol, month) job that is not stored yet."""
     if dataset == "klines" and interval is None:
         raise ValueError("klines need an interval")
     # The archive publishes a month a few days after it ends; do not cache its absence yet.
@@ -265,9 +265,8 @@ async def download(
         temporary.replace(path)
 
     async with asyncio.TaskGroup() as group:
-        for symbol in symbols:
-            for month in months:
-                group.create_task(fetch(symbol, month))
+        for symbol, month in dict.fromkeys(jobs):
+            group.create_task(fetch(symbol, month))
     return stats
 
 

@@ -1,7 +1,7 @@
 """`mb`: the command-line interface to the bot."""
 
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Annotated
 
@@ -23,6 +23,8 @@ from marketbot.exchange.signing import generate_ed25519_pem
 app = typer.Typer(no_args_is_help=True, add_completion=False)
 data_app = typer.Typer(no_args_is_help=True, help="Historical market data.")
 app.add_typer(data_app, name="data")
+research_app = typer.Typer(no_args_is_help=True, help="Research studies and reports.")
+app.add_typer(research_app, name="research")
 
 PRIVATE_KEY_NAME = "binance_ed25519_private.pem"
 PUBLIC_KEY_NAME = "binance_ed25519_public.pem"
@@ -111,6 +113,10 @@ def data_download(
     symbols_file: Annotated[
         Path | None, typer.Option(help="File with one symbol per line.")
     ] = None,
+    jobs_file: Annotated[
+        Path | None,
+        typer.Option(help="File with 'SYMBOL YYYY-MM' per line; overrides symbols and months."),
+    ] = None,
     root: Annotated[Path, typer.Option(help="Storage directory.")] = archive.DEFAULT_ROOT,
 ) -> None:
     """Download monthly USD-M futures data from data.binance.vision into Parquet files."""
@@ -120,18 +126,24 @@ def data_download(
 
     async def run() -> archive.DownloadStats:
         async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
-            if symbols:
-                wanted = [symbol.strip().upper() for symbol in symbols.split(",") if symbol]
-            elif symbols_file:
-                wanted = [line.strip() for line in symbols_file.read_text().splitlines() if line]
+            if jobs_file:
+                jobs = [
+                    (symbol, archive.Month.parse(month))
+                    for symbol, month in (line.split() for line in _lines(jobs_file))
+                ]
             else:
-                wanted = await archive.list_symbols(client)
-            typer.echo(f"{len(wanted)} symbols x {len(months)} months of {dataset}")
+                if symbols:
+                    wanted = [symbol.strip().upper() for symbol in symbols.split(",") if symbol]
+                elif symbols_file:
+                    wanted = _lines(symbols_file)
+                else:
+                    wanted = await archive.list_symbols(client)
+                jobs = [(symbol, month) for symbol in wanted for month in months]
+            typer.echo(f"{len(jobs)} symbol-months of {dataset}")
             return await archive.download(
                 client,
                 dataset,  # type: ignore[arg-type]
-                wanted,
-                months,
+                jobs,
                 root=root,
                 interval=interval if dataset == "klines" else None,
             )
@@ -143,3 +155,51 @@ def data_download(
     )
     if stats.failed:
         raise typer.Exit(1)
+
+
+@research_app.command("universe")
+def research_universe(
+    start: Annotated[str, typer.Option(help="First day, YYYY-MM-DD.")] = "2025-10-01",
+    end: Annotated[str, typer.Option(help="Last day, YYYY-MM-DD.")] = "2026-09-30",
+    out: Annotated[Path, typer.Option(help="Jobs file to write.")] = Path(
+        "data/research/universe-jobs.txt"
+    ),
+    root: Annotated[Path, typer.Option(help="Storage directory.")] = archive.DEFAULT_ROOT,
+) -> None:
+    """List the symbol-months of intraday data that the feasibility study needs."""
+    from marketbot.research import feasibility
+
+    universes = feasibility.study_universes(
+        root, date.fromisoformat(start), date.fromisoformat(end)
+    )
+    jobs = feasibility.intraday_jobs(universes)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("".join(f"{symbol} {month}\n" for symbol, month in jobs), encoding="utf-8")
+    typer.echo(
+        f"{universes['symbol'].n_unique()} symbols, {len(jobs)} symbol-months written to {out}"
+    )
+
+
+@research_app.command("feasibility")
+def research_feasibility(
+    start: Annotated[str, typer.Option(help="First day, YYYY-MM-DD.")] = "2025-10-01",
+    end: Annotated[str, typer.Option(help="Last day, YYYY-MM-DD.")] = "2026-09-30",
+    interval: Annotated[str, typer.Option(help="Intraday kline interval.")] = "5m",
+    out: Annotated[Path, typer.Option(help="Report to write.")] = Path(
+        "research/results/01-feasibility.md"
+    ),
+    root: Annotated[Path, typer.Option(help="Storage directory.")] = archive.DEFAULT_ROOT,
+) -> None:
+    """Run research 01 (is +10% per window reachable?) and write the generated report."""
+    from marketbot.research import feasibility
+
+    report = feasibility.run_study(
+        root, date.fromisoformat(start), date.fromisoformat(end), interval, progress=typer.echo
+    )
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(report, encoding="utf-8")
+    typer.echo(f"Report written to {out}")
+
+
+def _lines(path: Path) -> list[str]:
+    return [line.strip() for line in path.read_text().splitlines() if line.strip()]
