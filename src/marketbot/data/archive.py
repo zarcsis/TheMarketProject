@@ -20,10 +20,10 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from typing import Literal
-from xml.etree import ElementTree
 
 import httpx
 import polars as pl
+from defusedxml import ElementTree
 
 ARCHIVE_URL = "https://data.binance.vision"
 LISTING_URL = "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision"
@@ -115,8 +115,7 @@ def archive_url(dataset: Dataset, symbol: str, month: Month, interval: str | Non
             f"{symbol}-{interval}-{month}.zip"
         )
     return (
-        f"{ARCHIVE_URL}/data/{MARKET}/monthly/fundingRate/{symbol}/"
-        f"{symbol}-fundingRate-{month}.zip"
+        f"{ARCHIVE_URL}/data/{MARKET}/monthly/fundingRate/{symbol}/{symbol}-fundingRate-{month}.zip"
     )
 
 
@@ -136,8 +135,7 @@ def parse_listing(xml_text: str) -> tuple[list[str], str | None]:
     """Return (symbols, next_marker) from one page of the S3 bucket listing."""
     tree = ElementTree.fromstring(xml_text)
     prefixes = [
-        element.text or ""
-        for element in tree.findall("s3:CommonPrefixes/s3:Prefix", _S3_NAMESPACE)
+        element.text or "" for element in tree.findall("s3:CommonPrefixes/s3:Prefix", _S3_NAMESPACE)
     ]
     symbols = [prefix.rstrip("/").rsplit("/", 1)[-1] for prefix in prefixes]
     truncated = tree.findtext("s3:IsTruncated", default="false", namespaces=_S3_NAMESPACE)

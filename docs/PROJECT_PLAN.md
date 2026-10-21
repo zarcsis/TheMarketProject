@@ -170,7 +170,7 @@ This invariant makes the −9% line nearly a hard guarantee.
 
 ### 4.4 Per-trade and portfolio limits
 
-These are the initial values; all are in `config/risk.yaml`.
+These are the initial values; all are in [`config/risk.toml`](../config/risk.toml).
 
 **Sizing**
 
@@ -359,9 +359,9 @@ flowchart LR
 |---|---|
 | Language and packaging | Python 3.12+, `uv`, `pyproject.toml` |
 | Exchange access | Own thin async client: `httpx` for REST, `websockets` for streams. It signs with Ed25519 or HMAC. There is no abstraction layer between the risk manager and the exchange, which gives full control over Binance-specific endpoints and over order types that change over time. |
-| Data | `polars` or `pandas`, `numpy`; indicators implemented in-house (EMA, ATR, RSI, VWAP, Bollinger, ADX, Donchian) to avoid TA-Lib build issues on Windows |
-| Storage | SQLite (state, orders, journal); Parquet and DuckDB (market data, research) |
-| Configuration | `pydantic-settings`; `.env` for keys (in `.gitignore`); YAML for risk and strategy settings |
+| Data | `polars`; indicators implemented in-house (EMA, ATR, RSI, VWAP, Bollinger, ADX, Donchian) to avoid TA-Lib build issues on Windows |
+| Storage | SQLite (state, orders, journal); Parquet (market data, research) |
+| Configuration | `pydantic-settings`; `.env` for keys (in `.gitignore`); TOML for risk and strategy settings (`tomllib`, no extra dependency) |
 | Logging | `structlog` JSON lines |
 | Tests | `pytest`, plus `hypothesis` for the invariants of the risk state machine |
 | Alerts (optional) | Telegram bot to the user's phone, including a remote `/stop` command |
@@ -372,7 +372,7 @@ flowchart LR
 TheMarketProject/
   pyproject.toml
   .env.example
-  config/            risk.yaml, strategies.yaml
+  config/            risk.toml, strategies.toml
   src/marketbot/
     exchange/        Binance adapter, rate limits, symbol filters, reconciler
     data/            live collectors, history loader, storage

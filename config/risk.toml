@@ -1,0 +1,38 @@
+# Risk limits. See docs/PROJECT_PLAN.md, section 4.
+# Fractions are relative to the window's starting equity E0 unless noted otherwise.
+# Loosening any value is a committed change made outside a live session.
+
+[window]
+length_hours = 24
+target = 0.10              # PROTECT at E0 * (1 + target)
+loss_line = 0.09           # DEFENSE at E0 * (1 - loss_line)
+caution_at = 0.05          # CAUTION at E0 * (1 - caution_at)
+caution_recover_at = 0.03  # back to NORMAL at E0 * (1 - caution_recover_at)
+lock_floor_min = 0.09      # PROTECT floor is at least E0 * (1 + lock_floor_min)
+lock_floor_share = 0.70    # ... and locks this share of the gain above E0
+loss_line_buffer = 0.005   # entries keep this cushion above the loss line for gaps and slippage
+
+[trade]
+risk_per_trade = 0.03
+caution_size = 0.5         # size multiplier in CAUTION
+protect_size = 0.5         # size multiplier in PROTECT
+max_positions = 3
+caution_max_positions = 1
+max_same_direction_per_bucket = 2
+max_trades_per_window = 12
+
+[leverage]
+max_effective = 5          # total notional / equity
+max_exchange = 10          # leverage setting per symbol
+liquidation_distance_multiple = 2.0  # liquidation at least this many stop distances away
+
+[costs]
+taker_fee = 0.0005
+maker_fee = 0.0002
+stop_slippage = 0.001      # fraction of price assumed lost when a stop fills
+
+[project]
+pause_below = 0.70         # of starting equity
+defense_streak = 3         # consecutive loss-line windows that trigger reduced risk
+reduced_risk_per_trade = 0.015
+reduced_windows = 3
