@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
+import httpx
 import typer
 
 from marketbot.checks.account import (
@@ -15,10 +16,13 @@ from marketbot.checks.account import (
     run_checks,
 )
 from marketbot.config import Settings
+from marketbot.data import archive
 from marketbot.exchange.client import Binance
 from marketbot.exchange.signing import generate_ed25519_pem
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
+data_app = typer.Typer(no_args_is_help=True, help="Historical market data.")
+app.add_typer(data_app, name="data")
 
 PRIVATE_KEY_NAME = "binance_ed25519_private.pem"
 PUBLIC_KEY_NAME = "binance_ed25519_public.pem"
@@ -91,3 +95,51 @@ def keygen(
         "Register the public key on Binance (API Management > Create API > Self-generated),\n"
         "then put the API key and the private key path into .env."
     )
+
+
+@data_app.command("download")
+def data_download(
+    dataset: Annotated[
+        str, typer.Argument(help="klines or fundingRate.", metavar="DATASET")
+    ] = "klines",
+    interval: Annotated[str, typer.Option(help="Kline interval, e.g. 1d, 1h, 5m, 1m.")] = "1d",
+    start: Annotated[str, typer.Option(help="First month, YYYY-MM.")] = "2024-10",
+    end: Annotated[str, typer.Option(help="Last month, YYYY-MM.")] = "2026-09",
+    symbols: Annotated[
+        str | None, typer.Option(help="Comma-separated symbols; default: every USDT symbol.")
+    ] = None,
+    symbols_file: Annotated[
+        Path | None, typer.Option(help="File with one symbol per line.")
+    ] = None,
+    root: Annotated[Path, typer.Option(help="Storage directory.")] = archive.DEFAULT_ROOT,
+) -> None:
+    """Download monthly USD-M futures data from data.binance.vision into Parquet files."""
+    if dataset not in ("klines", "fundingRate"):
+        raise typer.BadParameter("DATASET must be klines or fundingRate")
+    months = list(archive.month_range(archive.Month.parse(start), archive.Month.parse(end)))
+
+    async def run() -> archive.DownloadStats:
+        async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
+            if symbols:
+                wanted = [symbol.strip().upper() for symbol in symbols.split(",") if symbol]
+            elif symbols_file:
+                wanted = [line.strip() for line in symbols_file.read_text().splitlines() if line]
+            else:
+                wanted = await archive.list_symbols(client)
+            typer.echo(f"{len(wanted)} symbols x {len(months)} months of {dataset}")
+            return await archive.download(
+                client,
+                dataset,  # type: ignore[arg-type]
+                wanted,
+                months,
+                root=root,
+                interval=interval if dataset == "klines" else None,
+            )
+
+    stats = asyncio.run(run())
+    typer.echo(
+        f"downloaded {stats.downloaded}, cached {stats.cached}, "
+        f"not in archive {stats.missing}, failed {stats.failed}"
+    )
+    if stats.failed:
+        raise typer.Exit(1)
