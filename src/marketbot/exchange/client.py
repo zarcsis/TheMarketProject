@@ -1,5 +1,7 @@
 """Spot (including SAPI) and USD-M futures hosts sharing one set of credentials."""
 
+from pathlib import Path
+
 import httpx
 
 from marketbot.config import Settings
@@ -17,6 +19,7 @@ class Binance:
         cls, settings: Settings, transport: httpx.AsyncBaseTransport | None = None
     ) -> "Binance":
         api_key = settings.binance_api_key.get_secret_value() if settings.binance_api_key else None
+        _ensure_not_private_key(api_key, settings.binance_private_key_path)
         signer = make_signer(settings)
 
         def host(base_url: str, time_path: str) -> BinanceREST:
@@ -43,6 +46,15 @@ class Binance:
     async def close(self) -> None:
         await self.spot.close()
         await self.futures.close()
+
+
+def _ensure_not_private_key(api_key: str | None, private_key_path: Path | None) -> None:
+    """Refuse to send the private key as the API key header (an easy copy-paste slip)."""
+    if api_key and private_key_path is not None and api_key in private_key_path.read_text():
+        raise ValueError(
+            "BINANCE_API_KEY contains part of the private key file. Use the API key shown on "
+            "Binance; the private key must never leave this machine."
+        )
 
 
 def make_signer(settings: Settings) -> Signer | None:
