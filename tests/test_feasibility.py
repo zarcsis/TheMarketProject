@@ -57,6 +57,8 @@ def test_bar_touching_both_levels_counts_as_stop() -> None:
     result = outcome([(100, 103, 97, 100)])
     assert result["long_outcome"] == "stop"
     assert result["short_outcome"] == "stop"
+    assert result["long_ambiguous"]
+    assert result["short_ambiguous"]
 
 
 def test_open_window_closes_at_the_last_bar() -> None:
@@ -115,6 +117,8 @@ def test_rules_pick_sides_from_the_previous_day() -> None:
             "long_return": [0.10],
             "short_outcome": ["stop"],
             "short_return": [-0.09],
+            "long_ambiguous": [False],
+            "short_ambiguous": [False],
         }
     )
     daily = daily_features(daily_klines([("AUSDT", 0, 100, 90, 1e9), ("AUSDT", 1, 90, 99, 1e9)]))
@@ -123,7 +127,7 @@ def test_rules_pick_sides_from_the_previous_day() -> None:
     assert by_rule[Rule.MOMENTUM.value] == pytest.approx(-0.09)  # day 0 fell, so short
     assert by_rule[Rule.REVERSAL.value] == pytest.approx(0.10)
     summary = summarize(ruled.filter(pl.col("rule") == Rule.COIN_FLIP.value), ["rule"])
-    assert summary["windows"][0] == pytest.approx(1.0)
+    assert summary["windows"][0] == 1
     assert summary["target %"][0] == pytest.approx(50.0)
     assert summary["mean return %"][0] == pytest.approx(0.5)
 

@@ -1,6 +1,6 @@
 # TheMarketProject: Project Plan
 
-Status: v0.2, 2026-10-21. Phase 0 is in progress.
+Status: v0.3, 2026-10-21. Phase 0 is complete; Phase 1 research is complete; Phase 2 is in progress (risk manager core done).
 
 ## 1. Goal and framing
 
@@ -465,7 +465,12 @@ TheMarketProject/
   - the cost model;
   - a Monte Carlo simulation of the daily target and stop rules.
 
-**Deliverable:** `research/01-feasibility.md`.
+**Deliverable:** [`research/01-feasibility.md`](../research/01-feasibility.md). Completed on 2026-10-21. Without an edge, the window game loses in every universe and at every leverage. The +10% stays a cap, and Phase 3 targets asymmetric trades (1R risk, 2R+ reward) with low costs.
+
+**Status of the remaining Phase 1 items.**
+
+- **Done:** historical downloader and REST client.
+- **Moved to Phase 2, where execution needs them:** the trading part of the exchange adapter, the reconciler, and the live collectors.
 
 ### Phase 2: Risk manager, execution, control plane
 

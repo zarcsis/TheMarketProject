@@ -193,6 +193,8 @@ def simulate_windows(bars: pl.DataFrame, rules: GameRules, *, min_bars: int = 28
             .then(pl.lit(rules.target))
             .otherwise(close_return)
             .alias(f"{side}_return"),
+            # The deciding bar touched both levels; counted as a stop, which may be wrong.
+            (stopped & (sp_bar == tp_bar)).alias(f"{side}_ambiguous"),
         ]
 
     return windows.select("symbol", "day", *outcome("long"), *outcome("short")).sort(
@@ -217,12 +219,28 @@ def apply_rules(windows: pl.DataFrame, daily: pl.DataFrame) -> pl.DataFrame:
         return [
             pl.when(long_side).then("long_outcome").otherwise("short_outcome").alias("outcome"),
             pl.when(long_side).then("long_return").otherwise("short_return").alias("ret"),
+            pl.when(long_side)
+            .then("long_ambiguous")
+            .otherwise("short_ambiguous")
+            .alias("ambiguous"),
         ]
 
     coin_flip = pl.concat(
         [
-            frame.select("symbol", "day", outcome="long_outcome", ret="long_return"),
-            frame.select("symbol", "day", outcome="short_outcome", ret="short_return"),
+            frame.select(
+                "symbol",
+                "day",
+                outcome="long_outcome",
+                ret="long_return",
+                ambiguous="long_ambiguous",
+            ),
+            frame.select(
+                "symbol",
+                "day",
+                outcome="short_outcome",
+                ret="short_return",
+                ambiguous="short_ambiguous",
+            ),
         ]
     ).with_columns(weight=pl.lit(0.5))
     parts = [
@@ -246,13 +264,16 @@ def summarize(outcomes: pl.DataFrame, by: list[str]) -> pl.DataFrame:
     return (
         outcomes.group_by(by)
         .agg(
-            (weight.sum()).alias("windows"),
+            weight.sum().round().cast(pl.Int64).alias("windows"),
             *[
                 ((weight * (pl.col("outcome") == name)).sum() / weight.sum() * 100).alias(
                     f"{name} %"
                 )
                 for name in ("target", "stop", "open")
             ],
+            ((weight * pl.col("ambiguous")).sum() / weight.sum() * 100).alias(
+                "stop and target in one bar %"
+            ),
             ((weight * pl.col("ret")).sum() / weight.sum() * 100).alias("mean return %"),
             (
                 (weight * pl.col("ret").clip(lower_bound=-0.99).log1p()).sum() / weight.sum() * 100
