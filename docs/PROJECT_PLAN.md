@@ -194,7 +194,7 @@ These are the initial values; all are in `config/risk.yaml`.
 
 | Condition | Action |
 |---|---|
-| Equity < 70 USDT (−30% from start) | Pause the experiment and run a full review before resuming. (Proposed value; to be confirmed.) |
+| Equity < 70% of starting equity | Pause the experiment and run a full review before resuming. Starting equity is the total account equity at the first live window. On 2026-10-21 that was about 123 USDT: 100 USDT plus BNB for fees and small altcoin balances. |
 | 3 consecutive DEFENSE windows | Cut base risk per trade to 1.5% for the next 3 windows. |
 | Bot state differs from exchange state | Block new entries until reconciled. |
 | Market data stale for more than 60 s, or repeated API errors | Block new entries. Exchange-side stops stay in place. |
@@ -565,7 +565,7 @@ TheMarketProject/
 |---|---|---|---|
 | 1 | What happens at session end | Close all positions and cancel all orders. | Adopted as default |
 | 2 | Window anchor | 24 hours from the first session start. | Adopted as default |
-| 3 | Project-level stop | Pause and review when equity falls below 70 USDT. | Adopted as default |
+| 3 | Project-level stop | Pause and review when equity falls below 70% of starting equity. | Adopted as default |
 | 4 | Availability of futures and margin | Available. The futures account is in one-way, single-asset mode. | Verified on 2026-10-21 |
 | 5 | Remote control | Telegram alerts and a `/stop` command. | Optional, later |
 | 6 | Repository | Public; MIT license; commits go directly to `main` with CI. | Adopted |
