@@ -52,6 +52,18 @@ Short from 5 minutes after the announcement, 20% stop, mean per trade:
 
 **The 4-hour hold is the most consistent,** and it fits within one trading session.
 
+### 3. Robustness: 1-minute bars and faster entries
+
+The same trades were re-run on 1-minute klines (79 events): a 4-hour hold with a 20% stop. Finer bars catch stops more precisely, so this is the more conservative estimate.
+
+| Entry delay | Mean per trade | 2024-25 | 2025-26 | t (announcements) |
+|---|---|---|---|---|
+| 1 minute | +6.1% | +3.6% | +7.7% | 2.30 |
+| 3 minutes | +4.9% | +4.3% | +5.2% | 2.28 |
+| 5 minutes | +5.2% | +6.0% | +4.7% | 2.67 |
+
+Entering sooner does not help much: the crash happens within the first minute. The live strategy keeps the 5-minute delay, which does not depend on winning a race against faster bots. Plan with about **+5% per trade**, not the +6.2% of the 5-minute-bar estimate.
+
 ## Implications
 
 - **This is the strongest result so far,** but the events are rare: about 1.5 announcements a month, each naming 2–3 tokens.
