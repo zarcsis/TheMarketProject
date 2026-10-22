@@ -1,6 +1,6 @@
 # TheMarketProject: Project Plan
 
-Status: v0.5, 2026-10-22. Phases 0-2 are complete; Phase 3 research has promoted two event strategies; Phase 4 (forward test on Demo Trading) is running. Live start: [LIVE.md](LIVE.md).
+Status: v0.6, 2026-10-22. Phases 0-3 are complete. The forward test on Demo Trading (Phase 4) runs with the event strategies. Live trading (Phase 5) started on 2026-10-22: the owner runs `delisting-short-4h` at risk scale 0.25. Goal revised: see section 1.
 
 ## 1. Goal and framing
 
@@ -9,7 +9,11 @@ TheMarketProject is a research experiment: an automated trading system on a Bina
 - **The bot** handles everything time-critical: market data, signal scanning, order execution, protective stops, and risk enforcement.
 - **Claude** acts as portfolio manager during the session. It reads news, macro context, and market structure, chooses the market regime, enables and disables strategies, throttles risk, and proposes discretionary trades. Every Claude action goes through the bot's risk manager.
 
-**Daily objective.** Gain +10% equity per 24-hour window, compounding (100 → 110 → 121 → …).
+**Goal (revised 2026-10-22, with the owner's agreement).** Prove a durable positive edge with real money: positive expectancy after costs that live results confirm.
+
+The original daily objective of +10% per 24-hour window, compounding (100 → 110 → 121 → …), is kept only as a window limit: profit locking at +10% and defense at −9%. The research (01–08) found no evidence that +10% a day is attainable. The best edges found make about 0.2% a day in-sample.
+
+**Original daily objective.** Gain +10% equity per 24-hour window, compounding.
 
 **Daily risk rules.**
 
