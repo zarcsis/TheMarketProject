@@ -462,6 +462,7 @@ class Engine:
                         "target": action.target,
                         "strategy": action.strategy,
                         "why": action.why,
+                        "bucket": action.bucket,
                     }
                 )
                 self.store.log("strategy_entry", status=status, result=result, why=action.why)

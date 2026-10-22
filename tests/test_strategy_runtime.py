@@ -9,6 +9,7 @@ from test_engine_drills import STOP_MARKET, Rig
 from marketbot.backtest.signals import Donchian
 from marketbot.backtest.trades import ExitRules
 from marketbot.domain import Side
+from marketbot.strategy.listing import ListingShort
 from marketbot.strategy.runtime import (
     Close,
     MoveStop,
@@ -136,3 +137,62 @@ def test_choose_universe_from_previous_day() -> None:
     )
     assert choose_universe(daily, "top volume", date(2026, 9, 2)) == ["A", "B", "C"]
     assert choose_universe(daily, "in play", date(2026, 9, 2))[0] == "A"
+
+
+class FakeKlines:
+    def __init__(self, info: dict, frames: dict) -> None:
+        self.info = info
+        self.frames = frames
+
+    async def exchange_info(self) -> dict:
+        return self.info
+
+    async def get(self, symbol: str, interval: str, limit: int) -> pl.DataFrame:
+        return self.frames[(symbol, interval)]
+
+
+def daily_frame(rows: list[tuple[datetime, float, float]]) -> pl.DataFrame:
+    return pl.DataFrame(
+        {
+            "open_time": [r[0] for r in rows],
+            "close": [r[1] for r in rows],
+            "quote_volume": [r[2] for r in rows],
+        }
+    ).with_columns(pl.col("open_time").cast(pl.Datetime("ms", "UTC")))
+
+
+async def test_listing_short_enters_busy_listings_and_exits_after_hold() -> None:
+    listed = datetime(2026, 10, 21, 7, 45, tzinfo=UTC)
+    info = {
+        "symbols": [
+            {
+                "symbol": symbol,
+                "contractType": contract,
+                "underlyingType": underlying,
+                "quoteAsset": "USDT",
+                "status": "TRADING",
+                "onboardDate": int(listed.timestamp() * 1000),
+            }
+            for symbol, contract, underlying in (
+                ("BUSYUSDT", "PERPETUAL", "COIN"),
+                ("QUIETUSDT", "PERPETUAL", "COIN"),
+                ("NKEUSDT", "TRADIFI_PERPETUAL", "EQUITY"),
+            )
+        ]
+    }
+    day0 = datetime(2026, 10, 21, tzinfo=UTC)
+    frames = {
+        ("BUSYUSDT", "1d"): daily_frame([(day0, 1.0, 9e7)]),
+        ("QUIETUSDT", "1d"): daily_frame([(day0, 1.0, 1e6)]),
+        ("BUSYUSDT", "1m"): daily_frame([(day0, 2.0, 0.0)]),
+    }
+    strategy = ListingShort(FakeKlines(info, frames))
+    now = datetime(2026, 10, 22, 0, 6, tzinfo=UTC)
+    [proposal] = await strategy.step(now, {})
+    assert (proposal.symbol, proposal.side, proposal.bucket) == ("BUSYUSDT", Side.SHORT, "listing")
+    assert proposal.stop == D("2.80")
+    assert await strategy.step(now + timedelta(minutes=5), {}) == []  # decided once
+
+    held = PositionView("BUSYUSDT", Side.SHORT, D(2), D("2.8"), D("0.8"), now, "listing-short")
+    later = now + timedelta(days=7, minutes=10)
+    assert await strategy.step(later, {"BUSYUSDT": held}) == [Close("BUSYUSDT", "held 7 days")]

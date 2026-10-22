@@ -9,7 +9,8 @@ from typing import Any
 
 from marketbot.backtest.signals import Donchian, Fade, OpeningRange
 from marketbot.backtest.trades import ExitRules
-from marketbot.strategy.runtime import Klines, SignalStrategy, SignalStrategyConfig
+from marketbot.strategy.listing import ListingShort, ListingShortConfig
+from marketbot.strategy.runtime import Klines, SignalStrategy, SignalStrategyConfig, Strategy
 
 PRESETS: dict[str, SignalStrategyConfig] = {
     # The only research 02 variant positive in both periods (weak: t below 1.3).
@@ -36,10 +37,20 @@ PRESETS: dict[str, SignalStrategyConfig] = {
 }
 
 
-def build(names: str, klines: Klines, journal: Callable[..., Any]) -> list[SignalStrategy]:
-    strategies = []
+# Research 03: short busy crypto listings the day after listing, 40% stop, 7-day hold.
+LISTING_PRESETS: dict[str, ListingShortConfig] = {
+    "listing-short-busy-7d": ListingShortConfig(),
+}
+
+
+def build(names: str, klines: Klines, journal: Callable[..., Any]) -> list[Strategy]:
+    strategies: list[Strategy] = []
     for name in (part.strip() for part in names.split(",") if part.strip()):
-        if name not in PRESETS:
-            raise ValueError(f"Unknown strategy preset {name!r}; known: {', '.join(PRESETS)}")
-        strategies.append(SignalStrategy(PRESETS[name], klines, journal=journal))
+        if name in PRESETS:
+            strategies.append(SignalStrategy(PRESETS[name], klines, journal=journal))
+        elif name in LISTING_PRESETS:
+            strategies.append(ListingShort(klines, LISTING_PRESETS[name], journal=journal))
+        else:
+            known = ", ".join([*PRESETS, *LISTING_PRESETS])
+            raise ValueError(f"Unknown strategy preset {name!r}; known: {known}")
     return strategies

@@ -31,6 +31,7 @@ class Propose:
     target: Decimal | None
     strategy: str
     why: str
+    bucket: str = "btc_beta"
 
 
 @dataclass(frozen=True)
@@ -75,6 +76,7 @@ class Klines:
         self._rest = rest
         self._semaphore = asyncio.Semaphore(concurrency)
         self._daily: tuple[date, pl.DataFrame] | None = None
+        self._info: tuple[datetime, dict] | None = None
         self._daily_lock = asyncio.Lock()
 
     async def daily(self, today: date) -> pl.DataFrame:
@@ -104,8 +106,14 @@ class Klines:
             )
         return parse_klines(symbol, rows)
 
+    async def exchange_info(self, max_age: timedelta = timedelta(minutes=10)) -> dict:
+        now = datetime.now(UTC)
+        if self._info is None or now - self._info[0] > max_age:
+            self._info = (now, await self._rest.public("GET", "/fapi/v1/exchangeInfo"))
+        return self._info[1]
+
     async def perpetuals(self) -> list[str]:
-        info = await self._rest.public("GET", "/fapi/v1/exchangeInfo")
+        info = await self.exchange_info()
         return [
             row["symbol"]
             for row in info["symbols"]
