@@ -71,6 +71,27 @@ The live bot may enter hours after 00:00 UTC. The 7-day short with a 40% stop wa
 
 **The live entry window.** The edge holds for entries until midday UTC, which supports the strategy's window (entries until 12:00 UTC).
 
+### 5. Robustness: quarters and concentration
+
+The busy 7-day short with a 40% stop (with funding) by listing quarter:
+
+| Quarter | Trades | Mean | Median | Win rate |
+|---|---|---|---|---|
+| 2024-Q4 | 36 | +3.1% | +12.4% | 64% |
+| 2025-Q1 | 41 | +10.5% | +22.2% | 68% |
+| 2025-Q2 | 53 | +2.6% | +8.2% | 64% |
+| 2025-Q3 | 65 | −3.4% | +4.4% | 55% |
+| 2025-Q4 | 54 | +10.5% | +20.0% | 69% |
+| 2026-Q1 | 21 | +4.9% | +15.3% | 62% |
+| 2026-Q2 | 9 | −1.3% | +22.2% | 56% |
+| 2026-Q3 | 4 | +14.1% | +24.3% | 75% |
+
+**Quarterly consistency.** Six of eight quarters have a positive mean, and the median is positive in every quarter.
+
+**Concentration.** The 10 best trades make 55% of the total profit. Without them the mean is still +2.0% per trade.
+
+**Frequency is falling.** Busy crypto listings became rare in 2026, as Binance listed more TradFi contracts. Expect one to three trades a month, not the 10–20 of 2025.
+
 ## Implications
 
 - **This is the first structural edge the project has found.** It is consistent across both years and survives funding and a BTC hedge.
