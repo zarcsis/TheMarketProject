@@ -56,6 +56,8 @@ class ConditionalOrder:
     kind: str  # STOP_MARKET or TAKE_PROFIT_MARKET
     trigger_price: Decimal
     close_position: bool
+    reduce_only: bool = False
+    qty: Decimal | None = None  # for reduce-only orders
 
     def protects(self, position: Position) -> bool:
         """Whether this is a stop that closes the given position."""
@@ -63,7 +65,7 @@ class ConditionalOrder:
             self.kind == STOP_MARKET
             and self.symbol == position.symbol
             and self.order_side == position.side.exit_order_side
-            and self.close_position
+            and (self.close_position or self.reduce_only)
         )
 
 
@@ -108,8 +110,17 @@ class Exchange(Protocol):
     ) -> Fill: ...
 
     async def place_conditional(
-        self, symbol: str, order_side: str, kind: str, trigger: Decimal, client_id: str
-    ) -> ConditionalOrder: ...
+        self,
+        symbol: str,
+        order_side: str,
+        kind: str,
+        trigger: Decimal,
+        client_id: str,
+        *,
+        qty: Decimal | None = None,
+    ) -> ConditionalOrder:
+        """A reduce-only order for `qty`, or a close-position order when `qty` is None."""
+        ...
 
     async def cancel_conditional(self, symbol: str, algo_id: int) -> None: ...
 
@@ -157,6 +168,8 @@ def parse_conditional(row: dict[str, Any]) -> ConditionalOrder:
         kind=row.get("orderType") or row.get("type", ""),
         trigger_price=Decimal(str(row["triggerPrice"])),
         close_position=bool(row.get("closePosition")),
+        reduce_only=bool(row.get("reduceOnly")),
+        qty=Decimal(str(row["quantity"])) if row.get("quantity") else None,
     )
 
 
@@ -280,8 +293,18 @@ class BinanceFutures:
         raise RuntimeError(f"Market order {client_id} not filled: status {row.get('status')}")
 
     async def place_conditional(
-        self, symbol: str, order_side: str, kind: str, trigger: Decimal, client_id: str
+        self,
+        symbol: str,
+        order_side: str,
+        kind: str,
+        trigger: Decimal,
+        client_id: str,
+        *,
+        qty: Decimal | None = None,
     ) -> ConditionalOrder:
+        # Binance allows one close-position stop per direction (error -4130), so stops that
+        # must be replaced safely (new one first) are reduce-only orders with a quantity.
+        size = {"quantity": qty, "reduceOnly": True} if qty else {"closePosition": True}
         row = await self._futures.signed(
             "POST",
             "/fapi/v1/algoOrder",
@@ -291,7 +314,7 @@ class BinanceFutures:
                 "side": order_side,
                 "type": kind,
                 "triggerPrice": trigger,
-                "closePosition": True,
+                **size,
                 "workingType": "MARK_PRICE",
                 "clientAlgoId": client_id,
             },
@@ -303,7 +326,9 @@ class BinanceFutures:
             order_side=order_side,
             kind=kind,
             trigger_price=trigger,
-            close_position=True,
+            close_position=qty is None,
+            reduce_only=qty is not None,
+            qty=qty,
         )
 
     async def cancel_conditional(self, symbol: str, algo_id: int) -> None:

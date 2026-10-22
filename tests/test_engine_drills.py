@@ -308,3 +308,32 @@ async def test_window_rolls_over_with_new_e0(rig: Rig) -> None:
     assert window.window_id == 2
     assert window.e0 == D(105)
     assert "window_closed" in rig.events()
+
+
+async def test_moving_a_close_position_stop_uses_a_reduce_only_one(rig: Rig) -> None:
+    # Found on Demo Trading: Binance rejects a second close-position stop (-4130), so a
+    # stop placed by an older version must still be movable.
+    await open_long(rig)
+    for stop in rig.stops():
+        await rig.exchange.cancel_conditional("SOLUSDT", stop.algo_id)
+    legacy = await rig.exchange.place_conditional("SOLUSDT", "SELL", STOP_MARKET, D(98), "old")
+    with pytest.raises(BinanceAPIError):
+        await rig.exchange.place_conditional("SOLUSDT", "SELL", STOP_MARKET, D(97), "again")
+    await rig.tick()  # adopts the legacy stop
+    rig.exchange.set_mark("SOLUSDT", D(108))
+    await rig.tick()
+    [stop] = rig.stops()
+    assert stop.algo_id != legacy.algo_id
+    assert stop.reduce_only
+    assert stop.qty == rig.exchange.holdings["SOLUSDT"].qty
+    assert stop.trigger_price > D(106)
+
+
+async def test_orphan_reduce_only_stop_is_cancelled_after_target(rig: Rig) -> None:
+    await open_long(rig, target="104")
+    rig.exchange.set_mark("SOLUSDT", D(104))  # the target closes the position
+    assert not rig.exchange.holdings
+    assert len(rig.stops()) == 1  # the reduce-only stop stays behind on the exchange
+    await rig.tick()
+    assert not rig.exchange.conditional
+    assert "orphan_orders_cancelled" in rig.events()

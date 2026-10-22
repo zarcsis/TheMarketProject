@@ -101,7 +101,9 @@ class Executor:
         )
         stop_price = tighten_to_tick(intent.stop, intent.side, info.tick_size)
         try:
-            stop = await self._place_with_retry(intent.symbol, intent.side, STOP_MARKET, stop_price)
+            stop = await self._place_with_retry(
+                intent.symbol, intent.side, STOP_MARKET, stop_price, qty=fill.qty
+            )
         except Exception as exc:
             self._journal("stop_failed", symbol=intent.symbol, error=str(exc))
             await self.close(
@@ -137,7 +139,9 @@ class Executor:
     async def place_stop(self, managed: ManagedPosition, info: SymbolInfo) -> ManagedPosition:
         """(Re)place the stop of a position whose stop is missing on the exchange."""
         price = tighten_to_tick(managed.stop, managed.side, info.tick_size)
-        stop = await self._place_with_retry(managed.symbol, managed.side, STOP_MARKET, price)
+        stop = await self._place_with_retry(
+            managed.symbol, managed.side, STOP_MARKET, price, qty=managed.qty
+        )
         return replace(managed, stop=stop.trigger_price, stop_algo_id=stop.algo_id)
 
     async def move_stop(
@@ -201,21 +205,23 @@ class Executor:
             self._journal("close_failed", symbol=symbol, error=repr(exc))
 
     async def _place_with_retry(
-        self, symbol: str, side: Side, kind: str, trigger: Decimal
+        self, symbol: str, side: Side, kind: str, trigger: Decimal, *, qty: Decimal | None = None
     ) -> ConditionalOrder:
+        """Stops are reduce-only for `qty` so that a new one can go in before the old one is
+        cancelled; targets close the whole position."""
         try:
-            return await self._place(symbol, side, kind, trigger)
+            return await self._place(symbol, side, kind, trigger, qty)
         except BinanceAPIError:
             raise  # the exchange rejected it; retrying the same request will not help
         except EXCHANGE_ERRORS:
-            return await self._place(symbol, side, kind, trigger)
+            return await self._place(symbol, side, kind, trigger, qty)
 
     async def _place(
-        self, symbol: str, side: Side, kind: str, trigger: Decimal
+        self, symbol: str, side: Side, kind: str, trigger: Decimal, qty: Decimal | None
     ) -> ConditionalOrder:
         purpose = "stop" if kind == STOP_MARKET else "target"
         return await self.exchange.place_conditional(
-            symbol, side.exit_order_side, kind, trigger, self.client_id(purpose)
+            symbol, side.exit_order_side, kind, trigger, self.client_id(purpose), qty=qty
         )
 
 

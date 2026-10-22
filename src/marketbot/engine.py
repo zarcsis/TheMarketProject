@@ -306,9 +306,15 @@ class Engine:
             if extra.algo_id != keep.algo_id:
                 await self.exchange.cancel_conditional(extra.symbol, extra.algo_id)
                 self.store.log("extra_stop_cancelled", symbol=extra.symbol, algo_id=extra.algo_id)
+        known = replace(known, qty=position.qty)
         if keep.algo_id != known.stop_algo_id or keep.trigger_price != known.stop:
+            known = replace(known, stop=keep.trigger_price, stop_algo_id=keep.algo_id)
+            self.store.put_position(known.symbol, known)
+        if keep.reduce_only and keep.qty != position.qty:
+            # A reduce-only stop must cover the whole position; re-place it at the same price.
+            info = await self.exchange.symbol_info(known.symbol)
             self.store.put_position(
-                known.symbol, replace(known, stop=keep.trigger_price, stop_algo_id=keep.algo_id)
+                known.symbol, await self.executor.move_stop(known, known.stop, info)
             )
 
     # Commands.

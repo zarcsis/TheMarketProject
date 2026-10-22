@@ -25,6 +25,7 @@ from marketbot.exchange.rest import BinanceAPIError
 
 WOULD_IMMEDIATELY_TRIGGER = -2021
 REDUCE_ONLY_REJECTED = -2022
+CLOSE_POSITION_EXISTS = -4130
 
 
 @dataclass
@@ -64,11 +65,14 @@ class SimulatedExchange:
     def set_mark(self, symbol: str, price: Decimal) -> None:
         self.marks[symbol] = price
         for order in list(self.conditional.values()):
+            if order.algo_id not in self.conditional:
+                continue  # removed by an earlier trigger in this loop
             if order.symbol == symbol and _triggered(order, price):
                 del self.conditional[order.algo_id]
                 holding = self.holdings.get(symbol)
                 if holding and holding.side.exit_order_side == order.order_side:
-                    self._close(symbol, holding.qty, price)
+                    qty = holding.qty if order.close_position else min(order.qty, holding.qty)
+                    self._close(symbol, qty, price)
 
     def open_foreign_position(self, symbol: str, side: Side, qty: Decimal) -> None:
         """A position the bot did not open (for the reconciliation drill)."""
@@ -132,12 +136,34 @@ class SimulatedExchange:
         return Fill(symbol, next(self._ids), qty, price)
 
     async def place_conditional(
-        self, symbol: str, order_side: str, kind: str, trigger: Decimal, client_id: str
+        self,
+        symbol: str,
+        order_side: str,
+        kind: str,
+        trigger: Decimal,
+        client_id: str,
+        *,
+        qty: Decimal | None = None,
     ) -> ConditionalOrder:
         self._call("place_conditional")
         order = ConditionalOrder(
-            symbol, next(self._ids), client_id, order_side, kind, trigger, close_position=True
+            symbol,
+            next(self._ids),
+            client_id,
+            order_side,
+            kind,
+            trigger,
+            close_position=qty is None,
+            reduce_only=qty is not None,
+            qty=qty,
         )
+        if order.close_position and any(
+            other.close_position
+            and (other.symbol, other.order_side, other.kind) == (symbol, order_side, kind)
+            for other in self.conditional.values()
+        ):
+            # Binance allows one close-position order per kind and direction.
+            raise BinanceAPIError(400, CLOSE_POSITION_EXISTS, "An open stop or take profit ...")
         if _triggered(order, self.marks[symbol]):
             raise BinanceAPIError(
                 400, WOULD_IMMEDIATELY_TRIGGER, "Order would immediately trigger."
@@ -190,8 +216,11 @@ class SimulatedExchange:
             self.wallet -= qty * price * self.taker_fee
         if qty >= holding.qty:
             del self.holdings[symbol]
-            for algo_id in [o.algo_id for o in self.conditional.values() if o.symbol == symbol]:
-                del self.conditional[algo_id]  # close-position orders expire with the position
+            # Close-position orders expire with the position; reduce-only ones stay behind
+            # as orphans, which the bot's reconciler must cancel.
+            for order in [o for o in self.conditional.values() if o.symbol == symbol]:
+                if order.close_position:
+                    del self.conditional[order.algo_id]
         else:
             self.holdings[symbol] = replace(holding, qty=holding.qty - qty)
 

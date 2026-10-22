@@ -182,3 +182,28 @@ def test_store_round_trips_state(tmp_path: Path) -> None:
     assert store.wait(command_id, timeout_s=1).result == {"ok": True}
     store.log("decision", kind="not a clash")
     assert store.last_events(1)[0].payload == {"kind": "not a clash"}
+
+
+async def test_reduce_only_stop_request() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={"algoId": 9})
+
+    rest = BinanceREST(
+        "https://fapi.example",
+        "/fapi/v1/time",
+        api_key="key",
+        signer=FakeSigner(),
+        transport=httpx.MockTransport(handler),
+    )
+    stop = await BinanceFutures(rest).place_conditional(
+        "SOLUSDT", "SELL", STOP_MARKET, D("98.00"), "mb-x-stop", qty=D("1.59")
+    )
+    await rest.close()
+    placed = parse_qs(requests[0].url.query.decode())
+    assert placed["quantity"] == ["1.59"]
+    assert placed["reduceOnly"] == ["true"]
+    assert "closePosition" not in placed
+    assert stop.reduce_only and stop.qty == D("1.59") and not stop.close_position
