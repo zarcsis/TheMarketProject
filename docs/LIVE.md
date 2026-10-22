@@ -22,7 +22,7 @@ The owner runs `mb flatten` and `mb session stop`.
 
 | Strategy | Evidence | Live? |
 |---|---|---|
-| `delisting-short-4h` ([research 04](../research/04-delistings.md)) | Positive in both years. +4.9% to +8.4% per trade, t 3.2 over 35 announcements. Rare: about 1.5 announcements a month. | **Yes**, the first candidate |
+| `delisting-short-4h` ([research 04](../research/04-delistings.md)) | Positive in both years: about +5% per trade on 1-minute bars, t 2.7 over 35 announcements. An out-of-time check in October 2026 gave +8.3% over 4 events. Rare: about 1.5 announcements a month. | **Yes**, the first candidate |
 | `listing-short-busy-7d` ([research 03](../research/03-listings.md)) | Positive in both years after funding and with a BTC hedge, t 1–2.3. Holds positions for 7 days. | Only with `MB_ON_STOP=keep` (see below) |
 | `monitoring-short-1d` ([research 07](../research/07-monitoring-tag.md)) | Positive in both years: +3.6% to +6.0% per trade, t 2.2 over 19 announcements. Holds positions for 1 day. | Only with `MB_ON_STOP=keep`, or as a shorter hold |
 | `donchian24-*` ([research 02](../research/02-strategies.md)) | No reliable edge. | **No**, Demo Trading only |
@@ -65,7 +65,7 @@ uv run mb events --limit 30      # what happened
 `listing-short-busy-7d` holds a position for 7 days. The default session rule (a session ends, everything closes) would cut every trade short. To keep its positions open between sessions:
 
 ```powershell
-$env:MB_STRATEGIES = "delisting-short-4h,listing-short-busy-7d"
+$env:MB_STRATEGIES = "delisting-short-4h,monitoring-short-1d,listing-short-busy-7d"
 $env:MB_ON_STOP = "keep"
 uv run mb session start
 ```

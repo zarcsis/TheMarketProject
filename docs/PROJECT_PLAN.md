@@ -515,8 +515,10 @@ TheMarketProject/
 - [03](../research/03-listings.md): shorting busy new listings is positive in both years.
 - [04](../research/04-delistings.md): shorting after delisting announcements is positive in both years and the strongest result.
 - [05](../research/05-spot-listings.md): longs on spot listing announcements lose.
+- [07](../research/07-monitoring-tag.md): shorting after the Monitoring Tag is positive in both years.
+- [08](../research/08-portfolio.md): the event strategies together, as a portfolio. About ×3.7 in two years in-sample, which is about +0.2% a day.
 
-**Promoted to the forward test:** `delisting-short-4h` and `listing-short-busy-7d`.
+**Promoted to the forward test:** `delisting-short-4h`, `monitoring-short-1d`, and `listing-short-busy-7d`.
 
 - **Delisting short** meets the criteria: 79 events, profit factor above 1.2, and positive in both years.
 - **Listing short** has thinner t-statistics but a broad, consistent effect.
