@@ -33,8 +33,8 @@ TIME_SYNC_INTERVAL_S = 1800
 
 def register(app: typer.Typer) -> None:
     app.add_typer(session_app, name="session")
-    for command in (bot, status, events, pause, resume, risk_scale, propose, flatten):
-        app.command(hidden=command is bot)(command)
+    for command in (bot, status, events, pause, resume, risk_scale, propose, flatten, demo_shift):
+        app.command(hidden=command in (bot, demo_shift))(command)
 
 
 class Paths:
@@ -96,7 +96,7 @@ async def _venue(env: Env, settings: Settings, binance: Binance, store: Store) -
         offset = actual - Decimal(str(settings.demo_equity))
         store.put("demo_offset", offset)
         store.log("demo_offset", actual_equity=actual, offset=offset)
-    return VirtualBalance(venue, Decimal(offset))
+    return VirtualBalance(venue, lambda: Decimal(store.get("demo_offset")))
 
 
 async def _keep_time_synced(binance: Binance) -> None:
@@ -308,3 +308,24 @@ def _money(value: Any) -> str:
 def _brief(payload: dict[str, Any], limit: int = 300) -> str:
     text = ", ".join(f"{key}={value}" for key, value in payload.items())
     return text if len(text) <= limit else text[: limit - 3] + "..."
+
+
+def demo_shift(
+    ctx: typer.Context,
+    delta: Annotated[
+        str, typer.Argument(help="USDT to add to the virtual equity (negative to remove).")
+    ],
+) -> None:
+    """Demo drills only: shift the virtual equity the bot sees, as if PnL happened elsewhere."""
+    if _env(ctx) != "demo":
+        typer.echo("demo-shift works only with --env demo.", err=True)
+        raise typer.Exit(2)
+    store = Store(Paths("demo").store)
+    offset = store.get("demo_offset")
+    if offset is None:
+        typer.echo("No demo offset yet; start a demo session first.", err=True)
+        raise typer.Exit(1)
+    new = Decimal(offset) - Decimal(delta)
+    store.put("demo_offset", new)
+    store.log("demo_shift", delta=Decimal(delta), offset=new)
+    typer.echo(f"Virtual equity shifted by {delta} USDT (offset {new}).")

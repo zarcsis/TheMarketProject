@@ -125,6 +125,15 @@ async def test_drill_stop_rejected_closes_the_position(rig: Rig) -> None:
     assert {"entry_filled", "stop_failed", "position_closed"} <= set(rig.events())
 
 
+async def test_drill_broken_fill_response_closes_the_fill_at_once(rig: Rig) -> None:
+    # Found on Demo Trading: the order filled, but its response could not be parsed.
+    rig.exchange.fail_next("market_after_fill", KeyError("avgPrice"))
+    result = await open_long(rig)
+    assert result.status == "error"
+    assert not rig.exchange.holdings  # closed in the same tick, not left without a stop
+    assert {"entry_uncertain", "position_closed"} <= set(rig.events())
+
+
 async def test_stop_placement_survives_one_network_error(rig: Rig) -> None:
     rig.exchange.fail_next("place_conditional")
     result = await open_long(rig)

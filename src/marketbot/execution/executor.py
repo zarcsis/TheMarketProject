@@ -77,13 +77,20 @@ class Executor:
         if qty <= 0 or qty * intent.entry < info.min_notional:
             raise EntryFailed(f"quantity {qty} is below the symbol minimum")
         await self.exchange.prepare(intent.symbol, decision.leverage)
-        fill = await self.exchange.market(
-            intent.symbol,
-            intent.side.entry_order_side,
-            qty,
-            reduce_only=False,
-            client_id=self.client_id("entry"),
-        )
+        try:
+            fill = await self.exchange.market(
+                intent.symbol,
+                intent.side.entry_order_side,
+                qty,
+                reduce_only=False,
+                client_id=self.client_id("entry"),
+            )
+        except Exception as exc:
+            # The order may have filled although the call failed (a timeout, an unexpected
+            # response). An entry without a confirmed fill gets no stop, so close any fill now.
+            self._journal("entry_uncertain", symbol=intent.symbol, error=repr(exc))
+            await self._close_if_open(intent.symbol)
+            raise EntryFailed(f"entry failed ({exc!r}); any fill was closed") from exc
         self._journal(
             "entry_filled",
             symbol=intent.symbol,
@@ -95,7 +102,7 @@ class Executor:
         stop_price = tighten_to_tick(intent.stop, intent.side, info.tick_size)
         try:
             stop = await self._place_with_retry(intent.symbol, intent.side, STOP_MARKET, stop_price)
-        except EXCHANGE_ERRORS as exc:
+        except Exception as exc:
             self._journal("stop_failed", symbol=intent.symbol, error=str(exc))
             await self.close(
                 intent.symbol, intent.side, fill.qty, reason="stop could not be placed"
@@ -182,6 +189,16 @@ class Executor:
         except EXCHANGE_ERRORS:
             return False
         return not account.positions and not account.conditional_orders
+
+    async def _close_if_open(self, symbol: str) -> None:
+        try:
+            account = await self.exchange.account()
+            position = account.positions.get(symbol)
+            if position is not None:
+                await self.close(symbol, position.side, position.qty, reason="unconfirmed entry")
+        except Exception as exc:
+            # The reconciler closes unknown positions on the next tick.
+            self._journal("close_failed", symbol=symbol, error=repr(exc))
 
     async def _place_with_retry(
         self, symbol: str, side: Side, kind: str, trigger: Decimal

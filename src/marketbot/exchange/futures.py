@@ -270,7 +270,8 @@ class BinanceFutures:
             },
         )
         for _ in range(5):
-            if row.get("status") == "FILLED":
+            # Some venues (Demo Trading) answer without avgPrice; the order query has it.
+            if row.get("status") == "FILLED" and Decimal(row.get("avgPrice") or 0) > 0:
                 return parse_fill(row)
             await asyncio.sleep(0.2)
             row = await self._futures.signed(

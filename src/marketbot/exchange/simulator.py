@@ -128,6 +128,7 @@ class SimulatedExchange:
             raise BinanceAPIError(400, REDUCE_ONLY_REJECTED, "ReduceOnly Order is rejected.")
         price = self.marks[symbol]
         self._trade(symbol, order_side, qty, price)
+        self._call("market_after_fill")  # lets a test break the response of a filled order
         return Fill(symbol, next(self._ids), qty, price)
 
     async def place_conditional(

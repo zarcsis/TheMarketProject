@@ -107,6 +107,12 @@ async def test_requests_use_the_algo_service() -> None:
         requests.append(request)
         if request.url.path == "/fapi/v1/algoOrder" and request.method == "POST":
             return httpx.Response(200, json={"algoId": 7, "clientAlgoId": "mb-x-stop"})
+        if request.url.path == "/fapi/v1/order" and request.method == "POST":
+            # Demo Trading's RESULT response has no avgPrice.
+            return httpx.Response(
+                200,
+                json={"symbol": "SOLUSDT", "orderId": 1, "status": "FILLED", "executedQty": "1.36"},
+            )
         if request.url.path == "/fapi/v1/order":
             return httpx.Response(
                 200,
@@ -144,7 +150,8 @@ async def test_requests_use_the_algo_service() -> None:
     assert market["reduceOnly"] == ["true"]
     assert market["newOrderRespType"] == ["RESULT"]
     assert fill.avg_price == D("100.05")
-    cancel = requests[2]
+    assert (requests[2].method, requests[2].url.path) == ("GET", "/fapi/v1/order")
+    cancel = requests[3]
     assert (cancel.method, cancel.url.path) == ("DELETE", "/fapi/v1/algoOrder")
     assert parse_qs(cancel.url.query.decode())["algoId"] == ["7"]
 
