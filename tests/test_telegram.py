@@ -205,3 +205,23 @@ def test_remote_run_wires_states_and_healthcheck(tmp_path: Path, monkeypatch) ->
     remote_run()
     assert captured["healthcheck_url"] == "https://hc.example/ping"
     assert callable(captured["states"])
+
+
+async def test_network_errors_are_retried(monkeypatch) -> None:
+    import marketbot.telegram as telegram_module
+
+    async def no_sleep(_seconds) -> None:
+        return None
+
+    monkeypatch.setattr(telegram_module.asyncio, "sleep", no_sleep)
+    calls = []
+
+    def flaky(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        if len(calls) == 1:
+            raise httpx.ReadError("connection closed")
+        return httpx.Response(200, json={"ok": True, "result": {"message_id": 7}})
+
+    api = TelegramAPI(TOKEN, transport=httpx.MockTransport(flaky))
+    assert (await api.send(OWNER, "result"))["message_id"] == 7
+    assert len(calls) == 2

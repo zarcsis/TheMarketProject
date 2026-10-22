@@ -87,12 +87,22 @@ class TelegramAPI:
     async def close(self) -> None:
         await self._client.aclose()
 
-    async def call(self, method: str, **params: Any) -> Any:
-        try:
-            response = await self._client.post(f"/{method}", json=params)
-            data = response.json()
-        except (httpx.HTTPError, ValueError) as exc:
-            raise TelegramError(self.redact(f"{method}: {type(exc).__name__}: {exc}")) from None
+    async def call(self, method: str, attempts: int = 3, **params: Any) -> Any:
+        """Call the Bot API, retrying network errors: a pooled connection that Telegram has
+        closed fails once with ReadError, and a lost reply would hide a command's result."""
+        for attempt in range(attempts):
+            try:
+                response = await self._client.post(f"/{method}", json=params)
+                data = response.json()
+                break
+            except httpx.TransportError as exc:
+                if attempt + 1 == attempts:
+                    raise TelegramError(
+                        self.redact(f"{method}: {type(exc).__name__}: {exc}")
+                    ) from None
+                await asyncio.sleep(1 + attempt)
+            except (httpx.HTTPError, ValueError) as exc:
+                raise TelegramError(self.redact(f"{method}: {type(exc).__name__}: {exc}")) from None
         if not data.get("ok"):
             raise TelegramError(self.redact(f"{method}: {data.get('description')}"))
         return data["result"]
