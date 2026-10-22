@@ -2,6 +2,7 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
+import httpx
 import polars as pl
 import pytest
 from test_engine_drills import STOP_MARKET, Rig
@@ -295,6 +296,30 @@ async def test_airdrop_short_skips_new_perpetuals() -> None:
     strategy = DelistingShort(klines, AIRDROP_CONFIG, fetch=fetch)
     actions = await strategy.step(released + timedelta(hours=3), {})
     assert [(a.symbol, a.stop, a.bucket) for a in actions] == [("OLDUSDT", D("2.80"), "airdrop")]
+
+
+async def test_a_long_announcements_outage_is_reported_once() -> None:
+    now = datetime(2026, 10, 22, 7, 0, tzinfo=UTC)
+    failing = True
+
+    async def fetch():
+        if failing:
+            raise httpx.ConnectError("blocked")
+        return pl.DataFrame(
+            {"title": [], "released": []},
+            schema={"title": pl.String, "released": pl.Datetime("us", "UTC")},
+        )
+
+    journal: list[str] = []
+    strategy = DelistingShort(
+        FakeKlines({"symbols": []}, {}), fetch=fetch, journal=lambda kind, **_: journal.append(kind)
+    )
+    for minute in range(0, 31):
+        await strategy.step(now + timedelta(minutes=minute), {})
+    failing = False
+    await strategy.step(now + timedelta(minutes=32), {})
+    await strategy.step(now + timedelta(minutes=34), {})
+    assert journal == ["announcements_error", "announcements_down", "announcements_restored"]
 
 
 def test_strategy_memory_survives_a_restart(tmp_path: Path) -> None:

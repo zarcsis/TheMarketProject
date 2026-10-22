@@ -65,6 +65,9 @@ AIRDROP_CONFIG = DelistingShortConfig(
 )
 
 Fetch = Callable[[], Awaitable[pl.DataFrame]]
+# The announcements feed is a public website endpoint: a short outage is normal, a long one
+# means the strategy is blind, which the owner must hear about.
+DOWN_AFTER = timedelta(minutes=10)
 
 
 def latest_from(catalog: int) -> Fetch:
@@ -92,6 +95,8 @@ class DelistingShort:
         self._journal = journal
         self._last_poll: datetime | None = None
         self._pending: dict[str, datetime] = {}  # symbol -> announcement time
+        self._failing_since: datetime | None = None
+        self._down_reported = False
         # Events already handled (entered or skipped), kept across restarts.
         self._done = Memory(store, f"strategy:{config.name}:done")
 
@@ -150,8 +155,21 @@ class DelistingShort:
         try:
             latest = await self._fetch()
         except Exception as exc:  # the website endpoint is best effort
-            self._journal("announcements_error", error=repr(exc))
+            if self._failing_since is None:
+                self._failing_since = now
+                self._journal("announcements_error", strategy=self.name, error=repr(exc))
+            elif not self._down_reported and now - self._failing_since >= DOWN_AFTER:
+                self._down_reported = True
+                self._journal(
+                    "announcements_down",
+                    strategy=self.name,
+                    since=self._failing_since.isoformat(),
+                    error=repr(exc),
+                )
             return
+        if self._down_reported:
+            self._journal("announcements_restored", strategy=self.name)
+        self._failing_since, self._down_reported = None, False
         recent = latest.filter(pl.col("released") >= now - self.config.max_delay)
         for row in recent.iter_rows(named=True):
             released = row["released"].astimezone(UTC)
@@ -161,4 +179,9 @@ class DelistingShort:
                     and symbol not in self._pending
                 ):
                     self._pending[symbol] = released
-                    self._journal("delisting_announced", symbol=symbol, title=row["title"])
+                    self._journal(
+                        "delisting_announced",
+                        strategy=self.name,
+                        symbol=symbol,
+                        title=row["title"],
+                    )

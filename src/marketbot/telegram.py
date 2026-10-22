@@ -57,6 +57,8 @@ NOTIFY = {
     "bot_restarted",
     "account_access_lost",
     "account_access_restored",
+    "announcements_down",
+    "announcements_restored",
 }
 
 HELP = """TheMarketProject remote.
@@ -486,6 +488,19 @@ def describe(kind: str, payload: dict[str, Any], ts: datetime) -> str:
             )
         case "account_access_restored":
             return f"{time} API access restored"
+        case "announcements_down":
+            return (
+                f"{time} ANNOUNCEMENTS FEED DOWN for {payload.get('strategy')} since "
+                f"{str(payload.get('since', ''))[11:16]} UTC: {str(payload.get('error'))[:120]}. "
+                "The strategy cannot see new events until it recovers."
+            )
+        case "announcements_restored":
+            return f"{time} announcements feed restored for {payload.get('strategy')}"
+        case "delisting_announced":
+            return (
+                f"{time} event for {payload.get('strategy', 'delisting-short')}: "
+                f"{payload.get('symbol')} ({str(payload.get('title'))[:120]})"
+            )
         case "protect":
             return f"{time} PROTECT: stops tightened to the floor {payload.get('floor')}"
         case _:
