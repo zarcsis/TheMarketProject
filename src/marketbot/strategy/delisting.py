@@ -70,7 +70,16 @@ class DelistingShort:
         if self._last_poll is None or now - self._last_poll >= self.config.poll:
             self._last_poll = now
             await self._poll(now)
-        for symbol, released in list(self._pending.items()):
+        due = [s for s, released in self._pending.items() if now - released >= self.config.delay]
+        if len(due) > 1:
+            # The risk rules allow few positions per bucket: take the most liquid first.
+            try:
+                volumes = await self._klines.quote_volumes()
+            except Exception:  # ordering is best effort
+                volumes = {}
+            due.sort(key=lambda s: volumes.get(s, 0.0), reverse=True)
+        ordered = [(s, self._pending[s]) for s in due]
+        for symbol, released in ordered:
             age = now - released
             if age < self.config.delay:
                 continue

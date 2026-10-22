@@ -240,3 +240,27 @@ async def test_stale_delisting_announcement_is_skipped() -> None:
 
     strategy = DelistingShort(FakeKlines({"symbols": []}, {}), fetch=fetch)
     assert await strategy.step(released + timedelta(hours=1), {}) == []
+
+
+async def test_delisting_short_prefers_liquid_symbols() -> None:
+    released = datetime(2026, 10, 22, 7, 0, 30, tzinfo=UTC)
+
+    async def fetch():
+        return pl.DataFrame(
+            {"title": ["Binance Will Delist AAA, BBB on 2026-11-05"], "released": [released]}
+        )
+
+    frames = {(s, "1m"): daily_frame([(released, 1.0, 0.0)]) for s in ("AAAUSDT", "BBBUSDT")}
+    klines = FakeKlines({"symbols": []}, frames)
+
+    async def perpetuals():
+        return ["AAAUSDT", "BBBUSDT"]
+
+    async def quote_volumes():
+        return {"AAAUSDT": 1e6, "BBBUSDT": 5e7}
+
+    klines.perpetuals = perpetuals
+    klines.quote_volumes = quote_volumes
+    strategy = DelistingShort(klines, fetch=fetch)
+    actions = await strategy.step(released + timedelta(minutes=6), {})
+    assert [a.symbol for a in actions] == ["BBBUSDT", "AAAUSDT"]

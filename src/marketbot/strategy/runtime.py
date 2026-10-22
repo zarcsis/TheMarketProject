@@ -112,6 +112,11 @@ class Klines:
             self._info = (now, await self._rest.public("GET", "/fapi/v1/exchangeInfo"))
         return self._info[1]
 
+    async def quote_volumes(self) -> dict[str, float]:
+        """24-hour quote volume of every symbol (one request, weight 40)."""
+        rows = await self._rest.public("GET", "/fapi/v1/ticker/24hr")
+        return {row["symbol"]: float(row["quoteVolume"]) for row in rows}
+
     async def perpetuals(self) -> list[str]:
         info = await self.exchange_info()
         return [
