@@ -1,6 +1,6 @@
 # TheMarketProject: Project Plan
 
-Status: v0.3, 2026-10-21. Phase 0 is complete; Phase 1 research is complete; Phase 2 is in progress (risk manager core done).
+Status: v0.4, 2026-10-22. Phases 0, 1, and 2 are complete. Next: Phase 3 (strategies and backtests).
 
 ## 1. Goal and framing
 
@@ -181,7 +181,7 @@ These are the initial values; all are in [`config/risk.toml`](../config/risk.tom
 
 **Protective stops**
 
-- Every position gets an exchange-side stop immediately after the entry fill: STOP_MARKET with reduce-only or close-position.
+- Every position gets an exchange-side stop immediately after the entry fill: a reduce-only STOP_MARKET for the position's quantity. Binance allows only one close-position stop per direction, and that would rule out placing the new stop before cancelling the old one.
 - If the stop cannot be placed, the bot closes the position at once.
 
 **Trading rules**
@@ -491,7 +491,7 @@ TheMarketProject/
   - a stop that fails to place;
   - a reconciliation mismatch.
 
-**Gate:** all drills pass, and the risk invariants are never violated in tests.
+**Gate:** all drills pass, and the risk invariants are never violated in tests. Passed on 2026-10-22: [drill report](drills/2026-10-22-phase2-demo.md).
 
 **Optional fast track.** After this gate, a first live "mechanics run" is possible at a 0.25 risk scale with Claude's discretionary trades only. Its purpose is to validate execution on mainnet, not to make a profit.
 

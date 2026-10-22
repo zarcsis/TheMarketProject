@@ -40,7 +40,17 @@ uv run ruff check              # lint
 uv run ruff format             # format
 uv run mb check [--public-only]
 uv run mb keygen
+
+# Trading sessions (add --env demo for Binance Demo Trading)
+uv run mb session start        # blocking: run it as a background task; it is the session heartbeat
+uv run mb status               # equity, window, mode, risk, positions, recent events
+uv run mb events --limit 30
+uv run mb propose SOLUSDT long --stop 105.2 [--target 111.6] --why "..."
+uv run mb pause | resume | risk-scale 0.5 | flatten
+uv run mb session stop         # closes everything, stops the bot
 ```
+
+Stopping the Claude Code task that runs `mb session start` ends the session: within about two minutes the bot closes everything and exits.
 
 ## Conventions
 
