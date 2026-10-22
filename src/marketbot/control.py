@@ -7,7 +7,7 @@ it passes the same risk checks as the bot's own decisions. The only exception is
 
 import asyncio
 import os
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Annotated, Any
@@ -36,7 +36,19 @@ TIME_SYNC_INTERVAL_S = 1800
 
 def register(app: typer.Typer) -> None:
     app.add_typer(session_app, name="session")
-    commands = (bot, status, events, pause, resume, risk_scale, auto, propose, flatten, demo_shift)
+    commands = (
+        bot,
+        status,
+        events,
+        report,
+        pause,
+        resume,
+        risk_scale,
+        auto,
+        propose,
+        flatten,
+        demo_shift,
+    )
     for command in commands:
         app.command(hidden=command in (bot, demo_shift))(command)
 
@@ -203,6 +215,27 @@ def events(
     store = Store(Paths(_env(ctx)).store)
     for event in store.last_events(limit):
         typer.echo(f"{event.ts:%Y-%m-%d %H:%M:%S} #{event.id} {event.kind} {_brief(event.payload)}")
+
+
+def report(
+    ctx: typer.Context,
+    hours: Annotated[float, typer.Option(help="Report on the last N hours.")] = 24.0,
+) -> None:
+    """Trades, closes, and the exchange's own PnL accounting (read-only)."""
+    from marketbot.reporting import fetch_income, journal_summary, render, summarize_income
+
+    env = _env(ctx)
+    end = datetime.now(UTC)
+    start = end - timedelta(hours=hours)
+
+    async def run() -> list[dict[str, Any]]:
+        async with Binance.from_settings(Settings().for_env(env)) as binance:
+            await binance.futures.sync_time()
+            return await fetch_income(binance.futures, start, end)
+
+    income = summarize_income(asyncio.run(run()))
+    journal = journal_summary(Store(Paths(env).store), start)
+    typer.echo(render(start, end, income, journal))
 
 
 def render_status(snapshot: dict[str, Any]) -> str:
