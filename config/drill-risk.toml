@@ -1,0 +1,39 @@
+# DEMO DRILLS ONLY. The bot refuses to run with this file on the live account.
+# Tiny window thresholds so that ordinary price moves on Binance Demo Trading reach the
+# target, the caution level, and the loss line within minutes.
+# Usage: $env:MB_RISK_CONFIG = "config/drill-risk.toml"; uv run mb --env demo session start
+
+[window]
+length_hours = 24
+target = 0.003
+loss_line = 0.003
+caution_at = 0.0015
+caution_recover_at = 0.001
+lock_floor_min = 0.002
+lock_floor_share = 0.70
+loss_line_buffer = 0.0005
+
+[trade]
+risk_per_trade = 0.002
+caution_size = 0.5
+protect_size = 0.5
+max_positions = 3
+caution_max_positions = 1
+max_same_direction_per_bucket = 2
+max_trades_per_window = 50
+
+[leverage]
+max_effective = 5
+max_exchange = 10
+liquidation_distance_multiple = 2.0
+
+[costs]
+taker_fee = 0.0005
+maker_fee = 0.0002
+stop_slippage = 0.001
+
+[project]
+pause_below = 0.70
+defense_streak = 3
+reduced_risk_per_trade = 0.001
+reduced_windows = 3

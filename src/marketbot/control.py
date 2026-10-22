@@ -6,8 +6,10 @@ it passes the same risk checks as the bot's own decisions. The only exception is
 """
 
 import asyncio
+import os
 from datetime import UTC, datetime
 from decimal import Decimal
+from pathlib import Path
 from typing import Annotated, Any
 
 import psutil
@@ -19,7 +21,8 @@ from marketbot.exchange.client import Binance
 from marketbot.exchange.futures import BinanceFutures, Exchange
 from marketbot.exchange.virtual import VirtualBalance
 from marketbot.execution.executor import Executor
-from marketbot.risk.config import load_risk_config
+from marketbot.risk.config import DEFAULT_PATH as DEFAULT_RISK_PATH
+from marketbot.risk.config import RiskConfig, load_risk_config
 from marketbot.session import bot_running, keep_alive, spawn_bot
 from marketbot.state.store import Store
 
@@ -54,13 +57,20 @@ def bot(ctx: typer.Context) -> None:
     """Run the trading engine in the foreground (started by `mb session start`)."""
     env = _env(ctx)
     paths = Paths(env)
-    reason = asyncio.run(_run_bot(env, paths))
+    store = Store(paths.store)
+    risk_path = Path(os.environ.get("MB_RISK_CONFIG") or DEFAULT_RISK_PATH)
+    if env == "live" and risk_path.resolve() != DEFAULT_RISK_PATH.resolve():
+        reason = f"refused: live trading only with {DEFAULT_RISK_PATH}"
+        store.log("engine_refused", reason=reason)
+    else:
+        config = load_risk_config(risk_path)
+        store.log("risk_config", path=str(risk_path), config=config.model_dump())
+        reason = asyncio.run(_run_bot(env, paths, store, config))
     typer.echo(f"{datetime.now(UTC).isoformat()} bot stopped: {reason}")
 
 
-async def _run_bot(env: Env, paths: Paths) -> str:
+async def _run_bot(env: Env, paths: Paths, store: Store, config: RiskConfig) -> str:
     settings = Settings().for_env(env)
-    store = Store(paths.store)
     heartbeat = Heartbeat(paths.heartbeat)
     if not heartbeat.alive(datetime.now(UTC)):
         store.log("engine_refused", reason="no fresh session heartbeat")
@@ -68,7 +78,7 @@ async def _run_bot(env: Env, paths: Paths) -> str:
     async with Binance.from_settings(settings) as binance:
         await binance.futures.sync_time()
         venue = await _venue(env, settings, binance, store)
-        engine = Engine(venue, store, load_risk_config(), heartbeat=heartbeat)
+        engine = Engine(venue, store, config, heartbeat=heartbeat)
         sync = asyncio.create_task(_keep_time_synced(binance))
         try:
             return await engine.run()
