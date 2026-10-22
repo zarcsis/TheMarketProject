@@ -81,6 +81,23 @@ The remote is a Telegram bot that runs on the bot's computer and answers only th
 
 **Free text** goes to Claude in the Claude app, not to the remote.
 
+**Starting live from the phone.** Each step is an owner action.
+
+1. `/mb check`: must pass.
+2. `/mb transfer 100 to-futures`, then confirm. This funds the futures wallet.
+3. `/mb strategies set delisting-short-4h`
+4. `/mb session start`
+5. `/mb risk-scale 0.25`: a quarter of the normal risk while live fills are unproven.
+6. `/mb auto on`: the strategies may trade from now on. A new bot starts with them off.
+
+To stop: `/mb auto off` (no new trades) or `/mb session stop` (closes everything), then confirm.
+
+The remote was tested on Demo Trading on 2026-10-22:
+
+- proposals that were run, declined, and expired;
+- a second confirmation for `close`;
+- `strategies set` and `restart` from the phone.
+
 **A session started from the remote** lives until `/mb session stop`, or until the remote itself stops.
 
 ## Keeping multi-day positions between sessions (optional)
