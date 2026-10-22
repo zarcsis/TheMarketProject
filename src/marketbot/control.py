@@ -15,16 +15,19 @@ from typing import Annotated, Any
 import psutil
 import typer
 
-from marketbot.config import Env, Settings, log_dir, state_dir
+from marketbot.config import FUTURES_BASE_URL, Env, Settings, log_dir, state_dir
 from marketbot.engine import Engine, Heartbeat
 from marketbot.exchange.client import Binance
 from marketbot.exchange.futures import BinanceFutures, Exchange
+from marketbot.exchange.rest import BinanceREST
 from marketbot.exchange.virtual import VirtualBalance
 from marketbot.execution.executor import Executor
 from marketbot.risk.config import DEFAULT_PATH as DEFAULT_RISK_PATH
 from marketbot.risk.config import RiskConfig, load_risk_config
 from marketbot.session import bot_running, keep_alive, spawn_bot
 from marketbot.state.store import Store
+from marketbot.strategy import presets
+from marketbot.strategy.runtime import Klines
 
 session_app = typer.Typer(no_args_is_help=True, help="Start and stop trading sessions.")
 
@@ -33,7 +36,8 @@ TIME_SYNC_INTERVAL_S = 1800
 
 def register(app: typer.Typer) -> None:
     app.add_typer(session_app, name="session")
-    for command in (bot, status, events, pause, resume, risk_scale, propose, flatten, demo_shift):
+    commands = (bot, status, events, pause, resume, risk_scale, auto, propose, flatten, demo_shift)
+    for command in commands:
         app.command(hidden=command in (bot, demo_shift))(command)
 
 
@@ -78,12 +82,17 @@ async def _run_bot(env: Env, paths: Paths, store: Store, config: RiskConfig) -> 
     async with Binance.from_settings(settings) as binance:
         await binance.futures.sync_time()
         venue = await _venue(env, settings, binance, store)
-        engine = Engine(venue, store, config, heartbeat=heartbeat)
+        # Signals always use the live venue's public klines, also when trading on Demo.
+        market = BinanceREST(FUTURES_BASE_URL, "/fapi/v1/time")
+        strategies = presets.build(os.environ.get("MB_STRATEGIES", ""), Klines(market), store.log)
+        store.log("strategies", names=[s.name for s in strategies])
+        engine = Engine(venue, store, config, heartbeat=heartbeat, strategies=strategies)
         sync = asyncio.create_task(_keep_time_synced(binance))
         try:
             return await engine.run()
         finally:
             sync.cancel()
+            await market.close()
 
 
 async def _venue(env: Env, settings: Settings, binance: Binance, store: Store) -> Exchange:
@@ -244,6 +253,16 @@ def risk_scale(
 ) -> None:
     """Scale risk per trade down (never above the configured limit)."""
     typer.echo(_send(Paths(_env(ctx)), "risk_scale", {"scale": scale}))
+
+
+def auto(
+    ctx: typer.Context,
+    state: Annotated[str, typer.Argument(help="on or off.")],
+) -> None:
+    """Let the configured strategies trade (on) or only manage risk (off)."""
+    if state not in ("on", "off"):
+        raise typer.BadParameter("state must be on or off")
+    typer.echo(_send(Paths(_env(ctx)), "auto", {"on": state == "on"}))
 
 
 def propose(

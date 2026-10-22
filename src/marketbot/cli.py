@@ -246,3 +246,24 @@ def research_strategies(
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(strategies.report(trades, period), encoding="utf-8")
     typer.echo(f"{trades.height} trades; report written to {out}")
+
+
+@research_app.command("listings")
+def research_listings(
+    archive_start: Annotated[str, typer.Option(help="First day of the archive window.")] = (
+        "2024-10-01"
+    ),
+    split: Annotated[str, typer.Option(help="Split listings by this date.")] = "2025-10-01",
+    out: Annotated[Path, typer.Option(help="Report to write.")] = Path(
+        "research/results/03-listings.md"
+    ),
+    root: Annotated[Path, typer.Option(help="Storage directory.")] = archive.DEFAULT_ROOT,
+) -> None:
+    """Run research 03 (short newly listed perpetuals)."""
+    from marketbot.research import listings
+
+    trades, text = listings.run(root, date.fromisoformat(archive_start), date.fromisoformat(split))
+    trades.write_parquet(Path("data/research/03-listing-trades.parquet"))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text, encoding="utf-8")
+    typer.echo(f"{trades.height} trades; report written to {out}")

@@ -71,9 +71,31 @@ class Strategy(Protocol):
 class Klines:
     """Public USD-M klines (from the live venue, also when executing on Demo Trading)."""
 
-    def __init__(self, rest: BinanceREST, concurrency: int = 5) -> None:
+    def __init__(self, rest: BinanceREST, concurrency: int = 10) -> None:
         self._rest = rest
         self._semaphore = asyncio.Semaphore(concurrency)
+        self._daily: tuple[date, pl.DataFrame] | None = None
+        self._daily_lock = asyncio.Lock()
+
+    async def daily(self, today: date) -> pl.DataFrame:
+        """The last few daily bars of every perpetual, fetched once per day for all users."""
+        async with self._daily_lock:
+            if self._daily is None or self._daily[0] != today:
+                symbols = await self.perpetuals()
+                frames = await asyncio.gather(
+                    *(self.get(symbol, "1d", 3) for symbol in symbols), return_exceptions=True
+                )
+                daily = pl.concat(
+                    [f for f in frames if isinstance(f, pl.DataFrame) and f.height]
+                ).select(
+                    "symbol",
+                    day=pl.col("open_time").dt.date(),
+                    open="open",
+                    close="close",
+                    quote_volume="quote_volume",
+                )
+                self._daily = (today, daily)
+            return self._daily[1]
 
     async def get(self, symbol: str, interval: str, limit: int) -> pl.DataFrame:
         async with self._semaphore:
@@ -164,17 +186,7 @@ class SignalStrategy:
     async def refresh_universe(self, today: date) -> None:
         if self._universe_day == today:
             return
-        symbols = await self._klines.perpetuals()
-        frames = await asyncio.gather(
-            *(self._klines.get(symbol, "1d", 3) for symbol in symbols), return_exceptions=True
-        )
-        daily = pl.concat([f for f in frames if isinstance(f, pl.DataFrame) and f.height]).select(
-            "symbol",
-            day=pl.col("open_time").dt.date(),
-            open="open",
-            close="close",
-            quote_volume="quote_volume",
-        )
+        daily = await self._klines.daily(today)
         self.universe = choose_universe(daily, self.config.universe, today)
         self._universe_day = today
         self._journal("universe", strategy=self.name, day=today, symbols=self.universe)
