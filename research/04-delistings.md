@@ -64,6 +64,13 @@ The same trades were re-run on 1-minute klines (79 events): a 4-hour hold with a
 
 Entering sooner does not help much: the crash happens within the first minute. The live strategy keeps the 5-minute delay, which does not depend on winning a race against faster bots. Plan with about **+5% per trade**, not the +6.2% of the 5-minute-bar estimate.
 
+**Both kinds of announcement work.** The 4-hour and 1-day shorts with a 20% stop, on 5-minute bars:
+
+| Kind | Events (announcements) | 4 hours: mean / median | 1 day: mean / median |
+|---|---|---|---|
+| Spot delisting ("Binance Will Delist A, B …") | 56 (19) | +5.9% / +6.3% | +6.4% / +7.8% |
+| Futures delisting ("Binance Futures Will Delist XUSDT …") | 23 (16) | +6.9% / +3.2% | +5.1% / +3.1% |
+
 ### 4. Out-of-time check: October 2026
 
 These announcements came after the research data ends. The trade is a 4-hour short with a 20% stop, from live 1-minute klines, entering 5 minutes after the announcement.
