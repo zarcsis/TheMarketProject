@@ -46,11 +46,30 @@ uv run mb session start        # blocking: run it as a background task; it is th
 uv run mb status               # equity, window, mode, risk, positions, recent events
 uv run mb events --limit 30
 uv run mb propose SOLUSDT long --stop 105.2 [--target 111.6] --why "..."
-uv run mb pause | resume | risk-scale 0.5 | flatten
+uv run mb pause | resume | risk-scale 0.5 | auto on|off | flatten
+uv run mb market               # market brief from public data
+uv run mb research <study>     # feasibility, strategies, listings, delistings, monitoring, portfolio, ...
 uv run mb session stop         # closes everything, stops the bot
 ```
 
 Stopping the Claude Code task that runs `mb session start` ends the session: within about two minutes the bot closes everything and exits.
+
+## Live sessions
+
+**The account owner starts and stops live trading** ([docs/LIVE.md](docs/LIVE.md)). Claude does not place real-money orders or move funds, even when asked. This includes:
+
+- `mb propose`, `mb flatten`, `mb session start` / `stop`, and `mb auto on` on the live environment;
+- transfers between wallets.
+
+**Demo Trading (`--env demo`)** is paper money: run anything there.
+
+**What Claude does in a live session:**
+
+- reads `mb status`, `mb events`, and `mb market`;
+- analyzes news and markets;
+- reduces risk with commands that do not trade (`mb pause`, `mb risk-scale`);
+- explains the bot's actions;
+- leaves trading and closing decisions to the owner.
 
 ## Conventions
 
