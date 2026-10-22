@@ -240,7 +240,7 @@ def render_status(snapshot: dict[str, Any]) -> str:
         for position in account["positions"]:
             lines.append(
                 f"  {position['symbol']} {position['side']} {position['qty']} @ mark "
-                f"{position['mark']}, stop {position['stop']}"
+                f"{position['mark']}, stop {position['stop']} [{position['bucket']}]"
             )
     return "\n".join(lines)
 
