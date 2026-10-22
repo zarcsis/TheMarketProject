@@ -28,7 +28,7 @@ KuCoin also announces perpetual delistings, through a public API with history si
 | 7 days, 30% stop | −12.7% | +4.1% (t 0.8) |
 | 7 days, 20% stop | −10.9% | +5.9% (t 1.2) |
 
-**The stops hurt more than on Bybit and OKX.** These tokens had already fallen 13.6% on average in the 24 hours before the announcement. They often bounce more than 30% before falling: 20% to 32% of the stopped variants were stopped out within 7 days.
+**The stops hurt more than on Bybit and OKX.** These tokens had already fallen 13.6% on average in the 24 hours before the announcement. They often bounce before falling: in the second year, 24% to 32% of the 7-day shorts were stopped out, depending on the stop.
 
 **With the demo strategy's settings** (7 days, 30% stop), the 29 events average about +1.8%, against +4.4% in research 14.
 
