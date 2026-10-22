@@ -56,6 +56,21 @@ Sizing under the project's risk rules:
 
 The wide spread between close settings means the exact figures are noisy. Expect about 0.1% per day, not 10%.
 
+### 4. Robustness: the entry hour
+
+The live bot may enter hours after 00:00 UTC. The 7-day short with a 40% stop was re-simulated on 5-minute klines for every listing, entering on day 1 at different hours. The figures are before funding.
+
+| Entry (UTC, day 1) | All listings | Busy, first year | Busy, second year |
+|---|---|---|---|
+| 00:00 | +4.9% | +3.6% | +9.5% |
+| 04:00 | +5.2% | +4.4% | +10.0% |
+| 08:00 | +5.2% | +3.9% | +10.4% |
+| 12:00 | +3.6% | +3.5% | +5.4% |
+
+**Validation of the daily model.** The 00:00 row matches the daily-bar model to the hundredth.
+
+**The live entry window.** The edge holds for entries until midday UTC, which supports the strategy's window (entries until 12:00 UTC).
+
 ## Implications
 
 - **This is the first structural edge the project has found.** It is consistent across both years and survives funding and a BTC hedge.

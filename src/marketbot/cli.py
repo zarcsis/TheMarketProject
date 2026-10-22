@@ -336,3 +336,23 @@ def market() -> None:
     from marketbot.market import brief
 
     typer.echo(asyncio.run(brief()))
+
+
+@research_app.command("funding")
+def research_funding(
+    split: Annotated[str, typer.Option(help="First day of the second year.")] = "2025-10-01",
+    out: Annotated[Path, typer.Option(help="Report to write.")] = Path(
+        "research/results/06-funding.md"
+    ),
+    root: Annotated[Path, typer.Option(help="Storage directory.")] = archive.DEFAULT_ROOT,
+) -> None:
+    """Run research 06 (extreme funding rates)."""
+    from marketbot.research import funding
+    from marketbot.research.feasibility import non_crypto_symbols
+
+    info = httpx.get("https://fapi.binance.com/fapi/v1/exchangeInfo", timeout=30).json()
+    trades, text = funding.run(root, non_crypto_symbols(info), date.fromisoformat(split))
+    trades.write_parquet(Path("data/research/06-funding-trades.parquet"))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text, encoding="utf-8")
+    typer.echo(f"{trades.height} trades; report written to {out}")
