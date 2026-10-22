@@ -362,3 +362,23 @@ async def test_keep_mode_still_flattens_when_the_window_is_halted(tmp_path: Path
     rig.clock.advance(seconds=121)
     assert await rig.tick() is False
     assert not rig.exchange.holdings
+
+
+async def test_restart_command_keeps_protected_positions(rig: Rig) -> None:
+    await open_long(rig)
+    command_id = rig.store.enqueue("restart", {})
+    assert await rig.tick() is False  # the engine exits for the restart
+    assert rig.store.command(command_id).status == "done"
+    assert "SOLUSDT" in rig.exchange.holdings
+    assert len(rig.stops()) == 1
+    assert rig.store.get("restart_pending") is True
+    assert "positions_kept" in rig.events()
+
+
+async def test_close_command_closes_one_position(rig: Rig) -> None:
+    await open_long(rig)
+    result = await rig.command("close", symbol="solusdt")
+    assert result.status == "done"
+    assert not rig.exchange.holdings
+    assert not rig.exchange.conditional
+    assert (await rig.command("close", symbol="ETHUSDT")).status == "rejected"

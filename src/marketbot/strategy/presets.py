@@ -71,3 +71,7 @@ def build(
             known = ", ".join([*PRESETS, *LISTING_PRESETS, *DELISTING_PRESETS])
             raise ValueError(f"Unknown strategy preset {name!r}; known: {known}")
     return strategies
+
+
+def names() -> list[str]:
+    return [*PRESETS, *LISTING_PRESETS, *DELISTING_PRESETS]

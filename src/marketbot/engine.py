@@ -46,6 +46,7 @@ from marketbot.state.store import Command, Store, load_dataclass
 from marketbot.strategy.runtime import Action, Close, MoveStop, PositionView, Propose, Strategy
 
 STALE_DATA = timedelta(seconds=60)
+RESTART = "restart"
 
 
 class Heartbeat:
@@ -146,7 +147,8 @@ class Engine:
             self.stopping = "session lost"
             self.store.log("session_lost", heartbeat_age_s=_seconds(self.heartbeat.age(now)))
         if self.stopping:
-            if self.keep_positions_on_stop and not self._must_be_flat():
+            keep = self.keep_positions_on_stop or self.stopping == RESTART
+            if keep and not self._must_be_flat():
                 secured = await self._secure_for_handover(now)
                 self._write_status(now, error=None if secured else "securing stops; retrying")
                 return not secured
@@ -398,8 +400,25 @@ class Engine:
             case "stop":
                 self.stopping = payload.get("reason", "session stopped")
                 return "done", {"stopping": self.stopping}
+            case "restart":
+                # Exit with positions kept under their stops; the session starts a new bot.
+                self.stopping = RESTART
+                self.store.put("restart_pending", True)
+                return "done", {"stopping": RESTART}
+            case "close":
+                return await self._close_symbol(str(payload["symbol"]).upper())
             case _:
                 return "rejected", {"error": f"unknown command {command.kind!r}"}
+
+    async def _close_symbol(self, symbol: str) -> tuple[str, dict[str, Any]]:
+        account = await self.exchange.account()
+        position = account.positions.get(symbol)
+        if position is None:
+            return "rejected", {"error": f"no open position in {symbol}"}
+        await self.executor.close(symbol, position.side, position.qty, reason="manual close")
+        self.store.delete_position(symbol)
+        await self.exchange.cancel_all(symbol)
+        return "done", {"closed": symbol, "qty": position.qty}
 
     async def _propose(self, payload: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         window, project, controls = self.window, self.project, self.controls

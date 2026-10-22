@@ -7,6 +7,7 @@ it passes the same risk checks as the bot's own decisions. The only exception is
 
 import asyncio
 import os
+import time
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -30,12 +31,14 @@ from marketbot.strategy import presets
 from marketbot.strategy.runtime import Klines
 
 session_app = typer.Typer(no_args_is_help=True, help="Start and stop trading sessions.")
+strategies_app = typer.Typer(no_args_is_help=True, help="Choose the strategies the bot runs.")
 
 TIME_SYNC_INTERVAL_S = 1800
 
 
 def register(app: typer.Typer) -> None:
     app.add_typer(session_app, name="session")
+    app.add_typer(strategies_app, name="strategies")
     commands = (
         bot,
         status,
@@ -46,7 +49,12 @@ def register(app: typer.Typer) -> None:
         risk_scale,
         auto,
         propose,
+        close,
         flatten,
+        restart,
+        on_stop,
+        transfer,
+        ask,
         demo_shift,
     )
     for command in commands:
@@ -96,11 +104,10 @@ async def _run_bot(env: Env, paths: Paths, store: Store, config: RiskConfig) -> 
         venue = await _venue(env, settings, binance, store)
         # Signals always use the live venue's public klines, also when trading on Demo.
         market = BinanceREST(FUTURES_BASE_URL, "/fapi/v1/time")
-        strategies = presets.build(
-            os.environ.get("MB_STRATEGIES", ""), Klines(market), store.log, store=store
-        )
+        names = os.environ.get("MB_STRATEGIES") or store.get("strategies") or ""
+        strategies = presets.build(names, Klines(market), store.log, store=store)
         store.log("strategies", names=[s.name for s in strategies])
-        keep = os.environ.get("MB_ON_STOP", "flatten") == "keep"
+        keep = (os.environ.get("MB_ON_STOP") or store.get("on_stop") or "flatten") == "keep"
         store.log("on_stop", mode="keep positions" if keep else "flatten")
         engine = Engine(
             venue,
@@ -166,7 +173,17 @@ def session_start(ctx: typer.Context) -> None:
         typer.echo(f"The bot exited at start; see {paths.log}.", err=True)
         raise typer.Exit(1)
     typer.echo(f"Session started ({env}); bot pid {pid}, log {paths.log}.")
-    reason = keep_alive(heartbeat, process, echo=typer.echo)
+    while True:
+        reason = keep_alive(heartbeat, process, echo=typer.echo)
+        store = Store(paths.store)
+        if reason != "bot exited" or not store.get("restart_pending"):
+            break
+        # `mb restart`: the bot exited with its positions kept; start it on the current code.
+        store.put("restart_pending", False)
+        heartbeat.touch()
+        process = psutil.Process(spawn_bot(env, paths.pid, paths.log))
+        store.log("bot_restarted", pid=process.pid)
+        typer.echo(f"Bot restarted; pid {process.pid}.")
     typer.echo(f"Heartbeat stopped: {reason}.")
 
 
@@ -392,3 +409,123 @@ def demo_shift(
     store.put("demo_offset", new)
     store.log("demo_shift", delta=Decimal(delta), offset=new)
     typer.echo(f"Virtual equity shifted by {delta} USDT (offset {new}).")
+
+
+# Settings and actions for the remote.
+
+
+@strategies_app.command("show")
+def strategies_show(ctx: typer.Context) -> None:
+    """Show the configured strategies and the available presets."""
+    store = Store(Paths(_env(ctx)).store)
+    override = os.environ.get("MB_STRATEGIES")
+    typer.echo(f"Configured: {store.get('strategies') or '(none)'}")
+    if override:
+        typer.echo(f"Overridden in this shell by MB_STRATEGIES: {override}")
+    typer.echo(f"On session end: {store.get('on_stop') or 'flatten'}")
+    typer.echo("Presets: " + ", ".join(presets.names()))
+
+
+@strategies_app.command("set")
+def strategies_set(
+    ctx: typer.Context,
+    names: Annotated[str, typer.Argument(help="Comma-separated presets; empty for none.")],
+) -> None:
+    """Choose the strategies; they take effect at the next start or `mb restart`."""
+    unknown = [n for n in names.split(",") if n.strip() and n.strip() not in presets.names()]
+    if unknown:
+        typer.echo(f"Unknown presets: {', '.join(unknown)}", err=True)
+        raise typer.Exit(2)
+    store = Store(Paths(_env(ctx)).store)
+    store.put("strategies", names)
+    store.log("strategies_set", names=names)
+    typer.echo(f"Strategies set to '{names}'. Run `mb restart` to apply them now.")
+
+
+def on_stop(
+    ctx: typer.Context,
+    mode: Annotated[str, typer.Argument(help="flatten (default) or keep.")],
+) -> None:
+    """What happens to positions when the session ends; applies at the next (re)start."""
+    if mode not in ("flatten", "keep"):
+        raise typer.BadParameter("mode must be flatten or keep")
+    store = Store(Paths(_env(ctx)).store)
+    store.put("on_stop", mode)
+    store.log("on_stop_set", mode=mode)
+    typer.echo(f"On session end: {mode}. Run `mb restart` to apply it now.")
+
+
+def restart(ctx: typer.Context) -> None:
+    """Restart the bot on the current code, keeping open positions under their stops."""
+    paths = Paths(_env(ctx))
+    old = bot_running(paths.pid)
+    if old is None:
+        typer.echo("No bot is running.", err=True)
+        raise typer.Exit(1)
+    typer.echo(f"Restart: {_send(paths, 'restart', {}, timeout_s=60)}")
+    try:
+        old.wait(timeout=120)
+    except psutil.TimeoutExpired:
+        typer.echo("The bot has not exited yet; check `mb status`.", err=True)
+        raise typer.Exit(1) from None
+    for _ in range(60):
+        new = bot_running(paths.pid)
+        if new is not None and new.pid != old.pid:
+            typer.echo(f"Bot restarted; pid {new.pid}.")
+            return
+        time.sleep(1)
+    typer.echo("No new bot yet: is the session (`mb session start`) still running?", err=True)
+    raise typer.Exit(1)
+
+
+def close(
+    ctx: typer.Context,
+    symbol: Annotated[str, typer.Argument(help="The perpetual to close, e.g. SOLUSDT.")],
+) -> None:
+    """Close one position at market and cancel its orders."""
+    typer.echo(_send(Paths(_env(ctx)), "close", {"symbol": symbol}, timeout_s=60))
+
+
+def transfer(
+    ctx: typer.Context,
+    amount: Annotated[str, typer.Argument(help="Amount to move.")],
+    direction: Annotated[str, typer.Argument(help="to-futures or to-spot.")],
+    asset: Annotated[str, typer.Option(help="Asset to move.")] = "USDT",
+) -> None:
+    """Move funds between the spot and USD-M futures wallets (live account only)."""
+    env = _env(ctx)
+    if env != "live":
+        typer.echo("Demo Trading has no wallet transfers.", err=True)
+        raise typer.Exit(2)
+    kinds = {"to-futures": "MAIN_UMFUTURE", "to-spot": "UMFUTURE_MAIN"}
+    if direction not in kinds:
+        raise typer.BadParameter("direction must be to-futures or to-spot")
+
+    async def run() -> object:
+        async with Binance.from_settings(Settings()) as binance:
+            await binance.spot.sync_time()
+            return await binance.spot.signed(
+                "POST",
+                "/sapi/v1/asset/transfer",
+                {"type": kinds[direction], "asset": asset.upper(), "amount": amount},
+            )
+
+    result = asyncio.run(run())
+    Store(Paths(env).store).log("transfer", amount=amount, asset=asset, direction=direction)
+    typer.echo(f"Transferred {amount} {asset.upper()} {direction}: {result}")
+
+
+def ask(
+    command: Annotated[str, typer.Argument(help="The mb command to propose, in quotes.")],
+    why: Annotated[str, typer.Option(help="What it changes and why.")],
+    ttl: Annotated[float, typer.Option(help="Minutes before the proposal expires.")] = 30,
+) -> None:
+    """Propose a command to the owner on the Telegram remote; it runs only if they tap Run."""
+    from marketbot import remote
+
+    try:
+        proposal = remote.propose(command, why, timedelta(minutes=ttl))
+    except remote.RemoteCommandError as exc:
+        typer.echo(f"Not proposable: {exc}", err=True)
+        raise typer.Exit(2) from exc
+    typer.echo(f"Proposal #{proposal} queued for the remote (expires in {ttl:g} minutes).")
