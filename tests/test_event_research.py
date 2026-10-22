@@ -100,3 +100,81 @@ def test_listing_kind_uses_only_titles_known_at_entry() -> None:
     assert listing_kind("DEGOUSDT", entry, titles) == "spot"
     assert listing_kind("1000DEGOUSDT", entry, titles) == "spot"
     assert listing_kind("NONEUSDT", entry, titles) == "futures only"
+
+
+def test_cliff_unlocks_are_sized_against_the_circulating_supply() -> None:
+    from marketbot.data.unlocks import cliff_events
+
+    day = 86_400
+    document = {
+        "id": "token",
+        "gecko_id": "token",
+        "categories": {"noncirculating": ["Treasury"], "insiders": ["Team"]},
+        "documentedData": {
+            "data": [
+                {
+                    "label": "Team",
+                    "data": [
+                        {"timestamp": t * day, "unlocked": u} for t, u in ((1, 0), (2, 0), (3, 50))
+                    ],
+                },
+                {
+                    "label": "Public",
+                    "data": [{"timestamp": t * day, "unlocked": 100} for t in (1, 2, 3)],
+                },
+                {
+                    "label": "Treasury",
+                    "data": [{"timestamp": t * day, "unlocked": 900} for t in (1, 2, 3)],
+                },
+            ]
+        },
+        "metadata": {
+            "events": [
+                {
+                    "timestamp": 1 * day,
+                    "noOfTokens": [100],
+                    "category": "publicSale",
+                    "unlockType": "cliff",
+                },
+                {
+                    "timestamp": 3 * day,
+                    "noOfTokens": [50],
+                    "category": "insiders",
+                    "unlockType": "cliff",
+                },
+                {
+                    "timestamp": 3 * day,
+                    "noOfTokens": [900],
+                    "category": "noncirculating",
+                    "unlockType": "cliff",
+                },
+                {
+                    "timestamp": 3 * day,
+                    "noOfTokens": [5],
+                    "category": "farming",
+                    "unlockType": "linear",
+                },
+            ]
+        },
+    }
+    [event] = cliff_events(document)  # the first-day unlock has no supply before it
+    assert (event["category"], event["tokens"], event["supply_before"]) == ("insiders", 50.0, 100.0)
+
+
+def test_unlock_windows_short_from_entry_to_exit_open() -> None:
+    from marketbot.research.unlocks import windows
+
+    days = [date(2026, 1, 1) + timedelta(days=i) for i in range(6)]
+    bars = pl.DataFrame(
+        {
+            "symbol": ["A"] * 6,
+            "day": days,
+            "open": [100.0, 100.0, 90.0, 80.0, 70.0, 60.0],
+            "high": [100.0] * 6,
+            "funding": [0.0, 0.001, 0.001, 0.001, 0.0, 0.0],
+        }
+    )
+    window = windows(bars, 2, 1).filter(pl.col("day") == days[3])
+    # Short at the open of Jan 2 (100), cover at the open of Jan 5 (70), funding of 3 days.
+    expected = 0.30 - 0.0005 * 1.7 + 0.003
+    assert window["with_funding"][0] == pytest.approx(expected)

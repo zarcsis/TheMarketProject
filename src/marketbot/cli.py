@@ -207,6 +207,29 @@ def data_announcements(
     asyncio.run(run())
 
 
+@data_app.command("unlocks")
+def data_unlocks(
+    out: Annotated[Path, typer.Option(help="Directory to write.")] = Path("data/unlocks"),
+) -> None:
+    """Download token unlock schedules (DefiLlama datasets) and CoinGecko tickers."""
+    import polars as pl
+
+    from marketbot.data import unlocks
+
+    async def run() -> tuple[pl.DataFrame, dict[str, str]]:
+        async with httpx.AsyncClient(timeout=60) as client:
+            documents = await unlocks.fetch_all(client)
+            return unlocks.events_frame(documents), await unlocks.fetch_coingecko_symbols(client)
+
+    events, symbols = asyncio.run(run())
+    out.mkdir(parents=True, exist_ok=True)
+    events.write_parquet(out / "cliffs.parquet")
+    pl.DataFrame({"gecko_id": list(symbols), "ticker": list(symbols.values())}).write_parquet(
+        out / "coingecko.parquet"
+    )
+    typer.echo(f"{events.height} cliff unlocks of {events['protocol'].n_unique()} protocols")
+
+
 @research_app.command("universe")
 def research_universe(
     start: Annotated[str, typer.Option(help="First day, YYYY-MM-DD.")] = "2025-10-01",
@@ -506,3 +529,52 @@ def research_upbit(
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text, encoding="utf-8")
     typer.echo(f"{frame.height} events; report written to {out}")
+
+
+@research_app.command("unlocks")
+def research_unlocks(
+    start: Annotated[str, typer.Option(help="First unlock day.")] = "2024-10-15",
+    end: Annotated[str, typer.Option(help="Day after the last unlock day.")] = "2026-09-20",
+    split: Annotated[str, typer.Option(help="First day of the second year.")] = "2025-10-01",
+    jobs: Annotated[
+        Path | None,
+        typer.Option(help="Only write the funding-rate months the study needs to this file."),
+    ] = None,
+    out: Annotated[Path, typer.Option(help="Report to write.")] = Path(
+        "research/results/11-unlocks.md"
+    ),
+    root: Annotated[Path, typer.Option(help="Storage directory.")] = archive.DEFAULT_ROOT,
+) -> None:
+    """Run research 11 (perpetuals around scheduled token unlocks).
+
+    Needs `mb data unlocks`, then the funding rates listed by --jobs.
+    """
+    from datetime import timedelta
+
+    import polars as pl
+
+    from marketbot.research import unlocks
+
+    cliffs = pl.read_parquet(Path("data/unlocks/cliffs.parquet"))
+    tickers = dict(pl.read_parquet(Path("data/unlocks/coingecko.parquet")).iter_rows())
+    symbols = set(archive.load("klines", root=root, interval="1d")["symbol"].unique())
+    first, last = date.fromisoformat(start), date.fromisoformat(end)
+    if jobs is not None:
+        events = unlocks.unlock_events(cliffs, tickers, symbols, first, last)
+        needed = sorted(
+            {
+                (symbol, f"{day + timedelta(days=offset):%Y-%m}")
+                for symbol, day in events.select("symbol", "day").iter_rows()
+                for offset in (-15, 0, 8)
+            }
+        )
+        jobs.write_text("".join(f"{symbol} {month}\n" for symbol, month in needed))
+        typer.echo(f"{len(needed)} symbol-months written to {jobs}")
+        return
+    trades, text = unlocks.run(
+        root, cliffs, tickers, symbols, first, last, date.fromisoformat(split)
+    )
+    trades.write_parquet(Path("data/research/11-unlock-trades.parquet"))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text, encoding="utf-8")
+    typer.echo(f"{trades.height} events in the main variant; report written to {out}")

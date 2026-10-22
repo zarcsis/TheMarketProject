@@ -524,6 +524,7 @@ TheMarketProject/
 - [08](../research/08-portfolio.md): the event strategies together, as a portfolio. About ×3.7 in two years in-sample, which is about +0.2% a day.
 - [09](../research/09-airdrops.md): listings whose tokens Binance airdrops (HODLer Airdrops, Launchpool, Megadrop) drift most; futures-only listings, nearly all of 2026, drift little. Shorting a listed perpetual after an airdrop announcement is positive, strongly so since 2025-10, on 32 events.
 - [10](../research/10-upbit.md): after Upbit KRW listings the Binance perpetual fades, but funding on the crowded short takes most of it; no strategy. Funding in the live delisting and Monitoring Tag shorts is negligible (0.08% per trade).
+- [11](../research/11-unlocks.md): shorting into scheduled insider unlocks earns about 1% over the same token's baseline, only in one year and not significant across tokens; no strategy.
 
 **Promoted to the forward test:** `delisting-short-4h`, `monitoring-short-1d`, and `listing-short-busy-7d`; since research 09, also `airdrop-short-7d` (Demo Trading only).
 
