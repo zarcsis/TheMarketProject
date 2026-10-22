@@ -154,7 +154,9 @@ def airdrop_events(titles: pl.DataFrame, since: datetime) -> pl.DataFrame:
     )
 
 
-def study_airdrops(root: Path, events: pl.DataFrame) -> pl.DataFrame:
+def study_shorts(root: Path, events: pl.DataFrame) -> pl.DataFrame:
+    """`event_shorts` for events with `symbol` and `released`, at every delay; other
+    columns are kept."""
     btc = archive.load("klines", ["BTCUSDT"], root=root, interval="5m").sort("open_time")
     rows = []
     for event in events.iter_rows(named=True):
@@ -177,6 +179,22 @@ def study_airdrops(root: Path, events: pl.DataFrame) -> pl.DataFrame:
             for row in event_shorts(bars, event["released"], funding, btc, delay):
                 rows.append({**event, "delay": delay_name, "pre_24h": pre_24h, **row})
     return pl.DataFrame(rows)
+
+
+def short_table(shorts: pl.DataFrame) -> pl.DataFrame:
+    """Shorts with funding by hold, stop, and period."""
+    hold_order = {name: i for i, name in enumerate(HOLDS)}
+    return (
+        shorts.group_by("hold", "stop", "period")
+        .agg(
+            *_stats("with_funding"),
+            pl.col("stopped").mean().mul(100).alias("stopped %"),
+            pl.col("hedged").mean().mul(100).alias("BTC-hedged %"),
+        )
+        .with_columns(order=pl.col("hold").replace_strict(hold_order))
+        .sort("order", "stop", "period")
+        .drop("order")
+    )
 
 
 def run(
@@ -226,24 +244,13 @@ def run(
     )
 
     events = airdrop_events(titles, since)
-    airdrops = study_airdrops(root, events).with_columns(
+    airdrops = study_shorts(root, events).with_columns(
         period=pl.when(pl.col("released").dt.date() < split)
         .then(pl.lit("first half"))
         .otherwise(pl.lit("second half"))
     )
     immediate = airdrops.filter(pl.col("delay") == "5 min")
-    hold_order = {name: i for i, name in enumerate(HOLDS)}
-    part2 = (
-        immediate.group_by("hold", "stop", "period")
-        .agg(
-            *_stats("with_funding"),
-            pl.col("stopped").mean().mul(100).alias("stopped %"),
-            pl.col("hedged").mean().mul(100).alias("BTC-hedged %"),
-        )
-        .with_columns(order=pl.col("hold").replace_strict(hold_order))
-        .sort("order", "stop", "period")
-        .drop("order")
-    )
+    part2 = short_table(immediate)
     main = airdrops.filter((pl.col("hold") == MAIN[0]) & (pl.col("stop") == MAIN[1]))
     by_delay = main.group_by("delay").agg(*_stats("with_funding")).sort("delay")
     immediate_main = main.filter(pl.col("delay") == "5 min").sort("released")
