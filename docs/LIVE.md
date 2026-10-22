@@ -78,6 +78,17 @@ uv run mb session start
 - The open-risk budget at entry still limits the total loss if every stop fires.
 - The 7-day time exit happens at the next session after the 7 days have passed.
 
+## When to run sessions
+
+The announcement strategies enter within 30 minutes of an announcement, so a session must be running when the announcement comes.
+
+| Event type | Announcements since 2024-10 | When they came (UTC) | Days |
+|---|---|---|---|
+| Delisting | 39 | 37 between 02:00 and 12:00 | Mostly Monday to Friday, most often Wednesday |
+| Monitoring Tag | 20 | All between 02:00 and 10:00 | Weekdays |
+
+**For a UTC−3 time zone, that window is 23:00 to 09:00 local time:** a session running overnight on weekdays catches nearly all of them. Busy listings are entered the day after listing, until 12:00 UTC.
+
 ## What to expect
 
 - **Most sessions will not trade.** Delisting announcements come about 1.5 times a month, busy listings a few times a week.

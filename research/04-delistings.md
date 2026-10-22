@@ -90,6 +90,10 @@ The mean is +8.3% per trade over 4 events, consistent with the study.
 - **The live strategy is `delisting-short-4h`.** It polls the announcements every minute, enters 5 to 30 minutes after an announcement, and closes after 4 hours with a 20% exchange-side stop.
 - **Expected contribution.** At 3% risk per trade, a 20% stop means a position of about 15% of equity, so +5% per trade adds about 0.75% of equity per event. That is worthwhile, but nowhere near 10% a day, and only on days with announcements.
 
+## Timing
+
+Of 39 delisting announcements since 2024-10, 37 were published between 02:00 and 12:00 UTC, mostly Monday to Friday and most often on Wednesday. The bot must be running in that window to trade them.
+
 ## Limitations
 
 - **Sample size.** It is small: 35 announcements, and events within one announcement are correlated.
