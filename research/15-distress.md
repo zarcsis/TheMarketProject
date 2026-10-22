@@ -28,7 +28,7 @@ Research 07 shorts a token for one day after Binance adds the Monitoring Tag. Re
 
 - **In 61% to 68% of events the short beats the index,** depending on the hold.
 - **A few huge squeezes decide the average.** Tagged tokens are thinly traded, crowded with shorts, and sometimes pump many times over. The worst was ALPACA, tagged in March 2025: its 60-day short lost 16.6 times the position.
-- **A 40% stop limits the damage but does not create an edge:** −0.6% to −6% at 30 and 60 days.
+- **A 40% stop limits the damage but does not create an edge:** −0.6% to −19% at 30 and 60 days.
 - **Delisting notices did come:** within 60 days for a third of the events. The crash they bring (research 04) does not make up for the squeezes.
 - **Across tokens the 30-day excess is −9.2% (t −1.4),** with each token counted once.
 
