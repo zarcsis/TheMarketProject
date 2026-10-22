@@ -3,6 +3,7 @@ from datetime import UTC, date, datetime, timedelta
 import polars as pl
 import pytest
 
+from marketbot.research.airdrops import listing_kind
 from marketbot.research.delistings import study_event
 from marketbot.research.listings import Variant, simulate_short
 from marketbot.research.portfolio import EventTrade, simulate
@@ -73,3 +74,29 @@ def test_portfolio_bucket_limits_and_sizing() -> None:
     notional = 0.03 / (0.20 + 0.004)
     assert equity == pytest.approx(1 + 2 * notional * 0.10)
     assert drawdown == 0
+
+
+def test_listing_kind_uses_only_titles_known_at_entry() -> None:
+    entry = datetime(2025, 3, 5, tzinfo=UTC)
+    titles = [
+        (
+            datetime(2025, 3, 4, 5, tzinfo=UTC),
+            "Introducing GoPlus Security (GPS) on Binance HODLer Airdrops!",
+        ),
+        (datetime(2025, 3, 6, tzinfo=UTC), "Introducing Late (LATE) on Binance HODLer Airdrops!"),
+        (
+            datetime(2025, 3, 4, tzinfo=UTC),
+            "Binance Futures Will Launch USDⓈ-Margined LATEUSDT Perpetual",
+        ),
+        (
+            datetime(2025, 2, 1, tzinfo=UTC),
+            "Doodles (DOOD) Will Be Available on Binance Alpha and Binance Futures",
+        ),
+        (datetime(2021, 6, 1, tzinfo=UTC), "Binance Will List Dego Finance (DEGO)"),
+    ]
+    assert listing_kind("GPSUSDT", entry, titles) == "airdrop"
+    assert listing_kind("LATEUSDT", entry, titles) == "futures only"  # the airdrop came later
+    assert listing_kind("DOODUSDT", entry, titles) == "alpha"
+    assert listing_kind("DEGOUSDT", entry, titles) == "spot"
+    assert listing_kind("1000DEGOUSDT", entry, titles) == "spot"
+    assert listing_kind("NONEUSDT", entry, titles) == "futures only"

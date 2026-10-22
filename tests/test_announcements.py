@@ -1,4 +1,4 @@
-from marketbot.data.announcements import delisted_perpetuals
+from marketbot.data.announcements import airdropped_perpetuals, delisted_perpetuals
 
 
 def test_parse_delisting_titles() -> None:
@@ -34,3 +34,20 @@ def test_parse_monitoring_tag_titles() -> None:
     assert monitoring_tagged_perpetuals(
         "Binance Will Extend the Monitoring Tag to Include BICO & CVC on 2026-10-09"
     ) == ["BICOUSDT", "CVCUSDT"]
+
+
+def test_parse_airdrop_titles() -> None:
+    hodler = (
+        "Introducing Midnight (NIGHT) on Binance HODLer Airdrops! Earn NIGHT With Retroactive "
+        "BNB Simple Earn Subscriptions"
+    )
+    assert airdropped_perpetuals(hodler) == ["NIGHTUSDT"]
+    launchpool = "Introducing Scroll (SCR) on Binance Launchpool and Pre-Market!"
+    assert airdropped_perpetuals(launchpool) == ["SCRUSDT"]
+    megadrop = (
+        "Introducing Solv Protocol (SOLV) on Binance Megadrop! Lock Your BNB and Complete Web3 "
+        "Quests for Airdrop"
+    )
+    assert airdropped_perpetuals(megadrop) == ["SOLVUSDT"]
+    assert airdropped_perpetuals("Introducing Binance Alpha: Discover Emerging Crypto") == []
+    assert airdropped_perpetuals("Binance Will List Hyperliquid (HYPE) with Seed Tag Applied") == []

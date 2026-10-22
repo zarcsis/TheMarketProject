@@ -9,7 +9,12 @@ from typing import Any
 
 from marketbot.backtest.signals import Donchian, Fade, OpeningRange
 from marketbot.backtest.trades import ExitRules
-from marketbot.strategy.delisting import MONITORING_CONFIG, DelistingShort, DelistingShortConfig
+from marketbot.strategy.delisting import (
+    AIRDROP_CONFIG,
+    MONITORING_CONFIG,
+    DelistingShort,
+    DelistingShortConfig,
+)
 from marketbot.strategy.listing import ListingShort, ListingShortConfig
 from marketbot.strategy.runtime import Klines, SignalStrategy, SignalStrategyConfig, Strategy
 
@@ -46,9 +51,12 @@ LISTING_PRESETS: dict[str, ListingShortConfig] = {
 
 # Research 04: short a perpetual 5 minutes after its delisting announcement, 20% stop, 4 hours.
 # Research 07: short a perpetual 5 minutes after Binance adds the Monitoring Tag, 1 day.
+# Research 09: short a listed perpetual after Binance announces an airdrop of its token,
+# 40% stop, 7 days.
 DELISTING_PRESETS: dict[str, DelistingShortConfig] = {
     "delisting-short-4h": DelistingShortConfig(),
     "monitoring-short-1d": MONITORING_CONFIG,
+    "airdrop-short-7d": AIRDROP_CONFIG,
 }
 
 

@@ -86,6 +86,18 @@ def monitoring_tagged_perpetuals(title: str) -> list[str]:
     return sorted({f"{token.strip()}USDT" for token in tokens if token.strip().isalnum()})
 
 
+_AIRDROP = re.compile(
+    r"^Introducing\s+.+?\(([A-Z0-9]{1,20})\)\s+on Binance (?:HODLer Airdrops|Launchpool|Megadrop)",
+    re.IGNORECASE,
+)
+
+
+def airdropped_perpetuals(title: str) -> list[str]:
+    """The USDT perpetual of a token Binance hands out: HODLer Airdrops, Launchpool, Megadrop."""
+    match = _AIRDROP.match(title)
+    return [f"{match.group(1)}USDT"] if match else []
+
+
 def save(frame: pl.DataFrame, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     frame.write_parquet(path)

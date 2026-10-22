@@ -522,8 +522,9 @@ TheMarketProject/
 - [06](../research/06-funding.md): extreme funding has no consistent edge.
 - [07](../research/07-monitoring-tag.md): shorting after the Monitoring Tag is positive in both years.
 - [08](../research/08-portfolio.md): the event strategies together, as a portfolio. About ×3.7 in two years in-sample, which is about +0.2% a day.
+- [09](../research/09-airdrops.md): listings whose tokens Binance airdrops (HODLer Airdrops, Launchpool, Megadrop) drift most; futures-only listings, nearly all of 2026, drift little. Shorting a listed perpetual after an airdrop announcement is positive, strongly so since 2025-10, on 32 events.
 
-**Promoted to the forward test:** `delisting-short-4h`, `monitoring-short-1d`, and `listing-short-busy-7d`.
+**Promoted to the forward test:** `delisting-short-4h`, `monitoring-short-1d`, and `listing-short-busy-7d`; since research 09, also `airdrop-short-7d` (Demo Trading only).
 
 - **Delisting short** meets the criteria: 79 events, profit factor above 1.2, and positive in both years.
 - **Listing short** has thinner t-statistics but a broad, consistent effect.

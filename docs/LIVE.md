@@ -25,6 +25,7 @@ The owner runs `mb flatten` and `mb session stop`.
 | `delisting-short-4h` ([research 04](../research/04-delistings.md)) | Positive in both years: about +5% per trade on 1-minute bars, t 2.7 over 35 announcements. An out-of-time check in October 2026 gave +8.3% over 4 events. Rare: about 1.5 announcements a month. | **Yes**, the first candidate |
 | `listing-short-busy-7d` ([research 03](../research/03-listings.md)) | Positive in both years after funding and with a BTC hedge, t 1–2.3. Holds positions for 7 days. | Only with `MB_ON_STOP=keep` (see below) |
 | `monitoring-short-1d` ([research 07](../research/07-monitoring-tag.md)) | Positive in both years: +3.6% to +6.0% per trade, t 2.2 over 19 announcements. Holds positions for 1 day. | Only with `MB_ON_STOP=keep`, or as a shorter hold |
+| `airdrop-short-7d` ([research 09](../research/09-airdrops.md)) | Shorts a listed perpetual after Binance announces an airdrop of its token. +10% per trade over 32 events (t 1.7); +19.6% since 2025-10 (t 2.6, 14 events). About one event a month. Holds positions for 7 days. | **Not yet**: Demo Trading first |
 | `donchian24-*` ([research 02](../research/02-strategies.md)) | No reliable edge. | **No**, Demo Trading only |
 
 **Simulated portfolio** ([research 08](../research/08-portfolio.md)). Over 2024-10 to 2026-09, at 3% risk per trade, the three event strategies (delisting, Monitoring Tag, busy listings) multiply equity by about 3.7 with a 14% realized drawdown. In 2026 alone they returned about +55% annualized.

@@ -404,3 +404,38 @@ def research_portfolio(
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(portfolio.run(), encoding="utf-8")
     typer.echo(f"Report written to {out}")
+
+
+@research_app.command("airdrops")
+def research_airdrops(
+    since: Annotated[str, typer.Option(help="First announcement day.")] = "2024-10-01",
+    split: Annotated[str, typer.Option(help="First day of the second year.")] = "2025-10-01",
+    out: Annotated[Path, typer.Option(help="Report to write.")] = Path(
+        "research/results/09-airdrops.md"
+    ),
+    root: Annotated[Path, typer.Option(help="Storage directory.")] = archive.DEFAULT_ROOT,
+) -> None:
+    """Run research 09 (listing types, and shorts after Binance airdrop announcements).
+
+    Needs the research 03 trades and the announcements catalogs 48 and 49.
+    """
+    import polars as pl
+
+    from marketbot.research import airdrops
+
+    titles = pl.concat(
+        pl.read_parquet(Path("data/announcements") / name).select("released", "title")
+        for name in ("listings.parquet", "news.parquet")
+    ).unique()
+    kinds, events, text = airdrops.run(
+        root,
+        pl.read_parquet(Path("data/research/03-listing-trades.parquet")),
+        titles,
+        date.fromisoformat(split),
+        datetime.fromisoformat(since).replace(tzinfo=UTC),
+    )
+    kinds.write_parquet(Path("data/research/09-listing-kinds.parquet"))
+    events.write_parquet(Path("data/research/09-airdrop-shorts.parquet"))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text, encoding="utf-8")
+    typer.echo(f"{kinds.height} listings, {events.height} event shorts; report written to {out}")

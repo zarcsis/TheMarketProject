@@ -1,7 +1,9 @@
-"""Live versions of research 04 and 07: short perpetuals after a Binance announcement.
+"""Live versions of research 04, 07, and 09: short perpetuals after a Binance announcement.
 
 Research 04: delisting announcements. Research 07: the Monitoring Tag (a delisting risk
-flag). Each configuration names the announcements catalog and the title parser.
+flag). Research 09: an airdrop (HODLer Airdrops, Launchpool, Megadrop) of a token whose
+perpetual already trades. Each configuration names the announcements catalog and the title
+parser.
 
 Backtest: entry at the open of the first 5-minute bar at least 5 minutes after the
 announcement, stop 20% above entry, close after 4 hours. Live: the strategy polls the
@@ -37,6 +39,8 @@ class DelistingShortConfig:
     bucket: str = BUCKET
     catalog: int = announcements.DELISTINGS
     parser: Callable[[str], list[str]] = announcements.delisted_perpetuals
+    # Skip perpetuals with less trading history than this; None: no minimum.
+    min_history: timedelta | None = None
 
 
 DEFAULT_CONFIG = DelistingShortConfig()
@@ -46,6 +50,18 @@ MONITORING_CONFIG = DelistingShortConfig(
     bucket="monitoring",
     catalog=announcements.NEWS,
     parser=announcements.monitoring_tagged_perpetuals,
+)
+# Research 09 tested entries up to 4 hours after the announcement, on perpetuals that had
+# traded for at least a day; newer listings belong to the listing short.
+AIRDROP_CONFIG = DelistingShortConfig(
+    stop=Decimal("0.40"),
+    hold=timedelta(days=7),
+    max_delay=timedelta(hours=4),
+    name="airdrop-short",
+    bucket="airdrop",
+    catalog=announcements.NEW_LISTINGS,
+    parser=announcements.airdropped_perpetuals,
+    min_history=timedelta(days=1),
 )
 
 Fetch = Callable[[], Awaitable[pl.DataFrame]]
@@ -110,6 +126,12 @@ class DelistingShort:
             if symbol not in tradable:
                 self._journal("delisting_skipped", symbol=symbol, reason="no tradable perpetual")
                 continue
+            if self.config.min_history is not None:
+                hours = int(self.config.min_history / timedelta(hours=1))
+                history = await self._klines.get(symbol, "1h", hours + 1)
+                if history.height <= hours:
+                    self._journal("delisting_skipped", symbol=symbol, reason="perpetual too new")
+                    continue
             price = Decimal(str((await self._klines.get(symbol, "1m", 1))["close"][0]))
             actions.append(
                 Propose(

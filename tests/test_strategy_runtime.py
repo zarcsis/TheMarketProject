@@ -9,7 +9,7 @@ from test_engine_drills import STOP_MARKET, Rig
 from marketbot.backtest.signals import Donchian
 from marketbot.backtest.trades import ExitRules
 from marketbot.domain import Side
-from marketbot.strategy.delisting import DelistingShort
+from marketbot.strategy.delisting import AIRDROP_CONFIG, DelistingShort
 from marketbot.strategy.listing import ListingShort
 from marketbot.strategy.runtime import (
     Close,
@@ -264,6 +264,37 @@ async def test_delisting_short_prefers_liquid_symbols() -> None:
     strategy = DelistingShort(klines, fetch=fetch)
     actions = await strategy.step(released + timedelta(minutes=6), {})
     assert [a.symbol for a in actions] == ["BBBUSDT", "AAAUSDT"]
+
+
+async def test_airdrop_short_skips_new_perpetuals() -> None:
+    released = datetime(2026, 10, 22, 8, 0, tzinfo=UTC)
+
+    async def fetch():
+        return pl.DataFrame(
+            {
+                "title": [
+                    "Introducing Old (OLD) on Binance HODLer Airdrops! Earn OLD With BNB",
+                    "Introducing New (NEW) on Binance HODLer Airdrops! Earn NEW With BNB",
+                ],
+                "released": [released, released],
+            }
+        )
+
+    hours = [released - timedelta(hours=h) for h in range(25)]
+    frames = {
+        ("OLDUSDT", "1h"): daily_frame([(t, 1.0, 0.0) for t in hours]),
+        ("NEWUSDT", "1h"): daily_frame([(t, 1.0, 0.0) for t in hours[:3]]),
+        ("OLDUSDT", "1m"): daily_frame([(released, 2.0, 0.0)]),
+    }
+    klines = FakeKlines({"symbols": []}, frames)
+
+    async def perpetuals():
+        return ["OLDUSDT", "NEWUSDT"]
+
+    klines.perpetuals = perpetuals
+    strategy = DelistingShort(klines, AIRDROP_CONFIG, fetch=fetch)
+    actions = await strategy.step(released + timedelta(hours=3), {})
+    assert [(a.symbol, a.stop, a.bucket) for a in actions] == [("OLDUSDT", D("2.80"), "airdrop")]
 
 
 def test_strategy_memory_survives_a_restart(tmp_path: Path) -> None:
