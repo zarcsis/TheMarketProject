@@ -41,6 +41,13 @@ At 3% risk per trade, with at most 3 positions open:
 
 At 1.5% risk per trade, all three together reach ×1.97, which is +42% a year with a 7% drawdown.
 
+**With the airdrop short of [research 09](09-airdrops.md)** (32 more events; added on 2026-10-22), at 3% risk with at most 3 positions open:
+
+- the four strategies reach ×4.11 (5th to 95th percentile ×3.42 to ×5.19), about +108% a year, with a 15% drawdown;
+- the airdrop short alone reaches ×1.29.
+
+It runs on Demo Trading only until forward events confirm it.
+
 **2026 only** (249 days, the most recent regime): all three return ×1.35 (+55% annualized) with a 10% drawdown. Busy listings were far rarer in 2026 (34 events), so their contribution fell.
 
 ## How to read this

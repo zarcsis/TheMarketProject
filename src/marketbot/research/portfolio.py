@@ -1,12 +1,14 @@
 """Research 08: the event strategies together, under the project's risk rules.
 
 Trades come from research 03 (busy listings, 7-day short, 40% stop, with funding), 04
-(delisting announcements, 4-hour short, 20% stop) and 07 (Monitoring Tag, 1-day short, 20%
-stop). Each entry risks a fixed share of current equity (position = risk / (stop + costs)),
-subject to a maximum of open positions and of positions per strategy bucket. Several events
-often start at the same moment; which of them get the free slots is decided at random, and
-the study reports the spread over many random orders. Equity changes when trades close
-(realized), so drawdowns are understated against mark-to-market.
+(delisting announcements, 4-hour short, 20% stop), 07 (Monitoring Tag, 1-day short, 20%
+stop), and 09 (airdrop announcements, 7-day short, 40% stop, with funding). A symbol is
+held by one strategy at a time, as in the bot. Each entry risks a fixed share of current
+equity (position = risk / (stop + costs)), subject to a maximum of open positions and of
+positions per strategy bucket. Several events often start at the same moment; which of
+them get the free slots is decided at random, and the study reports the spread over many
+random orders. Equity changes when trades close (realized), so drawdowns are understated
+against mark-to-market.
 """
 
 import random
@@ -29,6 +31,7 @@ class EventTrade:
     bucket: str
     stop: float
     ret: float
+    symbol: str = ""
 
 
 def load_trades(directory: Path = Path("data/research")) -> list[EventTrade]:
@@ -44,6 +47,9 @@ def load_trades(directory: Path = Path("data/research")) -> list[EventTrade]:
     monitoring = pl.read_parquet(directory / "07-monitoring-events.parquet").drop_nans(
         "short 1d stop 20%"
     )
+    airdrops = pl.read_parquet(directory / "09-airdrop-shorts.parquet").filter(
+        (pl.col("hold") == "7d") & (pl.col("stop") == "40%") & (pl.col("delay") == "5 min")
+    )
     trades = [
         EventTrade(
             datetime.combine(r["entry_date"], time(0, 5), UTC),
@@ -51,6 +57,7 @@ def load_trades(directory: Path = Path("data/research")) -> list[EventTrade]:
             "listing",
             0.40,
             r["ret_with_funding"],
+            r["symbol"],
         )
         for r in listings.iter_rows(named=True)
     ]
@@ -61,6 +68,7 @@ def load_trades(directory: Path = Path("data/research")) -> list[EventTrade]:
             "delisting",
             0.20,
             r["short 4h stop 20%"],
+            r["symbol"],
         )
         for r in delistings.iter_rows(named=True)
     ]
@@ -71,8 +79,20 @@ def load_trades(directory: Path = Path("data/research")) -> list[EventTrade]:
             "monitoring",
             0.20,
             r["short 1d stop 20%"],
+            r["symbol"],
         )
         for r in monitoring.iter_rows(named=True)
+    ]
+    trades += [
+        EventTrade(
+            r["released"] + timedelta(minutes=5),
+            r["released"] + timedelta(days=7, minutes=5),
+            "airdrop",
+            0.40,
+            r["with_funding"],
+            r["symbol"],
+        )
+        for r in airdrops.iter_rows(named=True)
     ]
     return trades
 
@@ -89,7 +109,7 @@ def simulate(
     rng = random.Random(seed)  # noqa: S311 - a simulation, not cryptography
     order = sorted(trades, key=lambda t: (t.entry, rng.random()))
     equity, peak, drawdown, taken = 1.0, 1.0, 0.0, 0
-    open_positions: list[tuple[datetime, float, float, str]] = []
+    open_positions: list[tuple[datetime, float, float, str, str]] = []
 
     def settle(until: datetime | None) -> None:
         nonlocal equity, peak, drawdown
@@ -104,10 +124,11 @@ def simulate(
     for trade in order:
         settle(trade.entry)
         in_bucket = sum(position[3] == trade.bucket for position in open_positions)
-        if len(open_positions) >= max_open or in_bucket >= per_bucket:
+        held = trade.symbol and any(position[4] == trade.symbol for position in open_positions)
+        if len(open_positions) >= max_open or in_bucket >= per_bucket or held:
             continue
         notional = risk * equity / (trade.stop + STOP_COSTS)
-        open_positions.append((trade.exit, notional, trade.ret, trade.bucket))
+        open_positions.append((trade.exit, notional, trade.ret, trade.bucket, trade.symbol))
         taken += 1
     settle(None)
     return equity, drawdown, taken
@@ -117,11 +138,13 @@ def run(directory: Path = Path("data/research"), seeds: int = 50) -> str:
     trades = load_trades(directory)
     days = (max(t.entry for t in trades) - min(t.entry for t in trades)).days
     combos = {
+        "all four": {"listing", "delisting", "monitoring", "airdrop"},
         "all three": {"listing", "delisting", "monitoring"},
         "delisting + monitoring": {"delisting", "monitoring"},
         "delisting": {"delisting"},
         "monitoring": {"monitoring"},
         "listing": {"listing"},
+        "airdrop": {"airdrop"},
     }
     rows = []
     for name, buckets in combos.items():
