@@ -85,3 +85,45 @@ def test_upbit_tokens_map_to_binance_perpetuals() -> None:
     assert perpetual("PEPE", symbols) == "1000PEPEUSDT"
     assert perpetual("BOB", symbols) == "1000000BOBUSDT"
     assert perpetual("ZIL", symbols) is None
+
+
+def test_parse_bybit_and_okx_titles() -> None:
+    from marketbot.data.exchanges import events, perp_delistings
+
+    assert events("bybit", "Delisting of  CHESSUSDT Perpetual Contract") == [
+        ("CHESS", "perp delisting")
+    ]
+    assert events(
+        "bybit",
+        "Delisting of XEC, ORT and MV",
+        "Bybit will be delisting the XEC/USDT, ORT/USDT and MV/USDT trading pairs",
+    ) == [("XEC", "spot delisting"), ("ORT", "spot delisting"), ("MV", "spot delisting")]
+    assert events("bybit", "Delisting of Selected Perpetual Contracts (Nov 24, 2025)") == []
+    assert events("bybit", "Bybit to Delist 1 Token(s) on Oct 28, 2026") == []
+    assert events("bybit", "New Listing: FUEL/USDT — Grab a Share of the FUEL Prize Pool") == [
+        ("FUEL", "spot listing")
+    ]
+    assert events("bybit", "New Listing:  RONINUSDT Perpetual Contract, with up to 50x") == [
+        ("RONIN", "perp listing")
+    ]
+    assert events("okx", "OKX to delist perpetual futures for BADGER, BAL, NIL crypto") == [
+        ("BADGER", "perp delisting"),
+        ("BAL", "perp delisting"),
+        ("NIL", "perp delisting"),
+    ]
+    assert events("okx", "OKX to delist KISHU, MILO and MXC spot trading pairs") == [
+        ("KISHU", "spot delisting"),
+        ("MILO", "spot delisting"),
+        ("MXC", "spot delisting"),
+    ]
+    assert events("okx", "OKX to list PARTI (Particle Network) for spot trading") == [
+        ("PARTI", "spot listing")
+    ]
+    assert events(
+        "okx", "OKX to list perpetual for MOVE crypto, along with its margin trading"
+    ) == [("MOVE", "perp listing")]
+    assert events("okx", "OKX to delist several perpetual futures") == []
+    assert events("okx", "OKX to list perpetual futures for USAR, COST and LLY equities") == []
+    assert perp_delistings("Delisting of DATAUSDT Perpetual  Contract") == ["DATAUSDT"]
+    assert perp_delistings("OKX to delist perpetual futures for AI16Z crypto") == ["AI16ZUSDT"]
+    assert perp_delistings("Delisting of PELL, PURSE and TRC") == []

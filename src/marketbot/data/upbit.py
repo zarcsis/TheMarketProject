@@ -89,7 +89,7 @@ def events(title: str) -> list[tuple[str, str]]:
     result = []
     for ticker in tickers(title):
         ticker_kind = title_kind
-        if title_kind.endswith("listing") and ticker in own_markets:
+        if title_kind in ("krw listing", "other listing") and ticker in own_markets:
             ticker_kind = "krw listing" if "KRW" in own_markets[ticker] else "other listing"
         result.append((ticker, ticker_kind))
     return result

@@ -322,6 +322,41 @@ async def test_a_long_announcements_outage_is_reported_once() -> None:
     assert journal == ["announcements_error", "announcements_down", "announcements_restored"]
 
 
+async def test_exchange_delisting_short_skips_perpetuals_binance_delists() -> None:
+    from marketbot.strategy.delisting import EXCHANGE_DELISTING_CONFIG, NO_DELIVERY
+
+    released = datetime(2026, 10, 22, 9, 0, tzinfo=UTC)
+
+    async def fetch():
+        return pl.DataFrame(
+            {
+                "title": [
+                    "Delisting of AAAUSDT Perpetual Contract",
+                    "OKX to delist perpetual futures for BBB crypto",
+                ],
+                "released": [released, released],
+            }
+        )
+
+    info = {
+        "symbols": [
+            {"symbol": "AAAUSDT", "deliveryDate": NO_DELIVERY},
+            {"symbol": "BBBUSDT", "deliveryDate": NO_DELIVERY - 10**12},
+        ]
+    }
+    klines = FakeKlines(info, {("AAAUSDT", "1m"): daily_frame([(released, 10.0, 0.0)])})
+
+    async def perpetuals():
+        return ["AAAUSDT", "BBBUSDT"]
+
+    klines.perpetuals = perpetuals
+    strategy = DelistingShort(klines, EXCHANGE_DELISTING_CONFIG, fetch=fetch)
+    actions = await strategy.step(released + timedelta(minutes=6), {})
+    assert [(a.symbol, a.stop, a.bucket) for a in actions] == [
+        ("AAAUSDT", D("13.00"), "exchange-delisting")
+    ]
+
+
 def test_strategy_memory_survives_a_restart(tmp_path: Path) -> None:
     from marketbot.state.store import Store
     from marketbot.strategy.runtime import Memory

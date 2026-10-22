@@ -23,15 +23,21 @@ from typing import Any
 import httpx
 import polars as pl
 
-from marketbot.data import announcements
+from marketbot.data import announcements, exchanges
 from marketbot.exchange.rest import BinanceREST
 from marketbot.research.delistings import STOP_SLIPPAGE, TAKER
 from marketbot.research.feasibility import markdown_table
-from marketbot.strategy.delisting import AIRDROP_CONFIG, DEFAULT_CONFIG, MONITORING_CONFIG
+from marketbot.strategy.delisting import (
+    AIRDROP_CONFIG,
+    DEFAULT_CONFIG,
+    EXCHANGE_DELISTING_CONFIG,
+    MONITORING_CONFIG,
+)
 from marketbot.strategy.listing import DEFAULT_CONFIG as LISTING_CONFIG
 from marketbot.strategy.runtime import parse_klines
 
 BAR = timedelta(minutes=5)
+MIN_VOLUME_24H = 100_000.0
 
 
 @dataclass(frozen=True)
@@ -71,6 +77,13 @@ RULES = {
         timedelta(days=LISTING_CONFIG.hold_days),
         timedelta(0),
         "+2% to +8% (research 03)",
+    ),
+    "exchange-delisting-short-7d": Rule(
+        "exchange-delisting-short-7d",
+        float(EXCHANGE_DELISTING_CONFIG.stop),
+        EXCHANGE_DELISTING_CONFIG.hold,
+        EXCHANGE_DELISTING_CONFIG.delay,
+        "+4.4% (research 14)",
     ),
 }
 
@@ -170,12 +183,26 @@ async def announcement_events(since: datetime) -> list[tuple[str, str, datetime]
         ("airdrop-short-7d", announcements.NEW_LISTINGS, AIRDROP_CONFIG.parser),
     )
     events = []
+    binance_delistings: dict[str, list[datetime]] = {}
     async with httpx.AsyncClient(timeout=30) as client:
         for strategy, catalog, parser in sources:
             frame = await announcements.fetch_catalog(client, catalog, max_pages=3)
             for title, released in frame.select("title", "released").iter_rows():
+                if strategy == "delisting-short-4h":
+                    for symbol in parser(title):
+                        binance_delistings.setdefault(symbol, []).append(released)
                 if released >= since:
                     events += [(strategy, symbol, released) for symbol in parser(title)]
+    # Bybit and OKX delistings, except tokens Binance announced delisting in the 30 days
+    # before (research 14 counts those apart; the bot skips perpetuals Binance delists).
+    frame = await exchanges.latest_delistings()
+    for title, released in frame.select("title", "released").iter_rows():
+        if released < since:
+            continue
+        for symbol in EXCHANGE_DELISTING_CONFIG.parser(title):
+            earlier = binance_delistings.get(symbol, [])
+            if not any(timedelta(0) <= released - day < timedelta(days=30) for day in earlier):
+                events.append(("exchange-delisting-short-7d", symbol, released))
     return sorted(set(events), key=lambda event: event[2])
 
 
@@ -199,6 +226,7 @@ async def collect(since: datetime, now: datetime) -> pl.DataFrame:
     async with BinanceREST("https://fapi.binance.com", "/fapi/v1/time") as rest:
         info = await rest.public("GET", "/fapi/v1/exchangeInfo")
         trading = {r["symbol"] for r in info["symbols"] if r.get("status") == "TRADING"}
+        known = {r["symbol"] for r in info["symbols"]}
         starts: list[tuple[str, str, datetime, datetime, str]] = []
         for strategy, symbol, announced in await announcement_events(since):
             starts.append(
@@ -233,6 +261,9 @@ async def collect(since: datetime, now: datetime) -> pl.DataFrame:
                 "event": event_time,
                 "note": note,
             }
+            if symbol not in known:
+                rows.append({**row, "status": "skipped: no Binance perpetual"})
+                continue
             try:
                 bars = await _klines(rest, symbol, start - timedelta(hours=1), end)
                 history = await rest.public(
@@ -251,6 +282,11 @@ async def collect(since: datetime, now: datetime) -> pl.DataFrame:
                 continue
             if strategy == "airdrop-short-7d" and len(history) <= 24:
                 rows.append({**row, "status": "skipped: perpetual too new"})
+                continue
+            # As in research 10 and 14: a perpetual that hardly traded in the day before
+            # (usually one Binance had already delisted) is not tradable.
+            if sum(float(bar[7]) for bar in history[-24:]) < MIN_VOLUME_24H:
+                rows.append({**row, "status": "skipped: not tradable"})
                 continue
             result = simulate(bars, funding, start, rule) if bars.height else None
             if result is None:

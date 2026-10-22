@@ -179,14 +179,15 @@ def data_download(
 
 @data_app.command("announcements")
 def data_announcements(
-    source: Annotated[str, typer.Option(help="binance, upbit, or all.")] = "all",
+    source: Annotated[str, typer.Option(help="binance, upbit, exchanges, or all.")] = "all",
     out: Annotated[Path, typer.Option(help="Directory to write.")] = Path("data/announcements"),
 ) -> None:
-    """Download exchange announcements: Binance catalogs 48, 49, 161, and Upbit's trade notices."""
-    from marketbot.data import announcements, upbit
+    """Download exchange announcements: Binance catalogs 48, 49, 161, Upbit's trade notices,
+    and Bybit's and OKX's listings and delistings (`exchanges`)."""
+    from marketbot.data import announcements, exchanges, upbit
 
-    if source not in ("binance", "upbit", "all"):
-        raise typer.BadParameter("--source must be binance, upbit, or all")
+    if source not in ("binance", "upbit", "exchanges", "all"):
+        raise typer.BadParameter("--source must be binance, upbit, exchanges, or all")
 
     async def run() -> None:
         async with httpx.AsyncClient(timeout=30) as client:
@@ -200,6 +201,8 @@ def data_announcements(
                     frames[name] = await announcements.fetch_catalog(client, catalog)
             if source in ("upbit", "all"):
                 frames["upbit"] = await upbit.fetch_notices(client)
+            if source in ("exchanges", "all"):
+                frames["exchanges"] = await exchanges.fetch_all(client)
         for name, frame in frames.items():
             announcements.save(frame, out / f"{name}.parquet")
             typer.echo(f"{name}: {frame.height} announcements, {frame['released'].min()} on")
@@ -568,6 +571,59 @@ def research_reversal(
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text, encoding="utf-8")
     typer.echo(f"{weeks.height} weekly cohorts; report written to {out}")
+
+
+@research_app.command("exchanges")
+def research_exchanges(
+    since: Annotated[str, typer.Option(help="First announcement day.")] = "2024-10-01",
+    split: Annotated[str, typer.Option(help="First day of the second year.")] = "2025-10-01",
+    jobs: Annotated[
+        Path | None,
+        typer.Option(help="Only write the kline and funding months the study needs to this file."),
+    ] = None,
+    out: Annotated[Path, typer.Option(help="Report to write.")] = Path(
+        "research/results/14-exchanges.md"
+    ),
+    root: Annotated[Path, typer.Option(help="Storage directory.")] = archive.DEFAULT_ROOT,
+) -> None:
+    """Run research 14 (Binance perpetuals after Bybit and OKX announcements).
+
+    Needs `mb data announcements --source exchanges`, then the data listed by --jobs.
+    """
+    from datetime import timedelta
+
+    import polars as pl
+
+    from marketbot.research import exchanges
+    from marketbot.research.feasibility import non_crypto_symbols
+
+    notices = pl.read_parquet(Path("data/announcements/exchanges.parquet"))
+    binance = pl.read_parquet(Path("data/announcements/delistings.parquet"))
+    info = httpx.get("https://fapi.binance.com/fapi/v1/exchangeInfo", timeout=30).json()
+    symbols = set(archive.load("klines", root=root, interval="1d")["symbol"].unique())
+    symbols -= non_crypto_symbols(info)
+    start = datetime.fromisoformat(since).replace(tzinfo=UTC)
+    if jobs is not None:
+        events = exchanges.event_frame(notices, binance, start, symbols)
+        needed = sorted(
+            {
+                (symbol, f"{released + timedelta(days=offset):%Y-%m}")
+                for symbol, released in events.select("symbol", "released").iter_rows()
+                for offset in (-2, 0, 8, 15)
+            }
+            | {("BTCUSDT", f"{day:%Y-%m}") for day in events["released"]}
+        )
+        jobs.write_text("".join(f"{symbol} {month}" + chr(10) for symbol, month in needed))
+        typer.echo(f"{len(needed)} symbol-months written to {jobs}")
+        return
+    frame, shorts, text = exchanges.run(
+        root, notices, binance, start, date.fromisoformat(split), symbols
+    )
+    frame.write_parquet(Path("data/research/14-exchange-events.parquet"))
+    shorts.write_parquet(Path("data/research/14-exchange-shorts.parquet"))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text, encoding="utf-8")
+    typer.echo(f"{frame.height} events; report written to {out}")
 
 
 @research_app.command("unlocks")

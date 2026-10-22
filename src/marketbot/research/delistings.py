@@ -52,6 +52,11 @@ def study_event(bars: pl.DataFrame, released, direction: int = -1) -> dict | Non
     row: dict = {
         "pre_24h": float(entry / opens[index - 288] - 1),
         "reaction": float(entry / before["close"][-1] - 1) if before.height else np.nan,
+        # Quote volume over the 24 hours before the entry: a perpetual Binance has already
+        # delisted keeps flat, empty bars in the archive.
+        "volume_24h": float(bars["quote_volume"][index - 288 : index].sum())
+        if "quote_volume" in bars.columns
+        else np.nan,
     }
     for name, bars_ahead in HORIZONS.items():
         end = index + bars_ahead - 1

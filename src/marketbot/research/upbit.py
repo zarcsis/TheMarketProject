@@ -20,6 +20,9 @@ from marketbot.research.feasibility import markdown_table
 
 MULTIPLIERS = ("", "1000", "1000000", "1M")
 KINDS = ("krw listing", "other listing", "delisting", "warning", "caution call")
+# A perpetual that traded less than this in the 24 hours before an event is not tradable
+# (often Binance had already delisted it); such events are left out.
+MIN_VOLUME_24H = 100_000.0
 # Kinds with a short effect in the first pass, studied again with funding and wide stops.
 SHORT_KINDS = ("krw listing", "other listing", "warning")
 
@@ -95,39 +98,43 @@ def _t(values: np.ndarray) -> float:
     return float(values.mean() / values.std(ddof=1) * np.sqrt(len(values)))
 
 
-def run(
-    root: Path, notices: pl.DataFrame, since: datetime, split: date, symbols: set[str]
-) -> tuple[pl.DataFrame, pl.DataFrame, str]:
-    events = event_frame(notices, since, symbols)
+def is_listing(kind: str) -> bool:
+    return kind.endswith("listing") and not kind.endswith("delisting")
+
+
+def study_kinds(
+    root: Path,
+    events: pl.DataFrame,
+    kinds: tuple[str, ...],
+    short_kinds: tuple[str, ...],
+    split: date,
+) -> tuple[pl.DataFrame, pl.DataFrame, list[str]]:
+    """The event study per kind, then the funded short model for `short_kinds`.
+
+    `events` needs `symbol`, `kind`, and `released`. Returns the event returns, the funded
+    shorts, and the report sections.
+    """
     frame = study(root, events)
-    shorts = study_shorts(root, events.filter(pl.col("kind").is_in(SHORT_KINDS))).with_columns(
+    inactive = frame.filter(~(pl.col("volume_24h") >= MIN_VOLUME_24H))
+    frame = frame.filter(pl.col("volume_24h") >= MIN_VOLUME_24H)
+    active = events.join(
+        frame.select("symbol", "kind", "released"), on=["symbol", "kind", "released"]
+    )
+    shorts = study_shorts(root, active.filter(pl.col("kind").is_in(short_kinds))).with_columns(
         period=pl.when(pl.col("released").dt.date() < split)
         .then(pl.lit("first half"))
         .otherwise(pl.lit("second half"))
     )
-    funded = []
-    for kind in SHORT_KINDS:
-        part = shorts.filter(pl.col("kind") == kind)
-        seven_days = part.filter(pl.col("hold") == "7d")
-        by_delay = (
-            seven_days.group_by("stop", "delay").agg(*_stats("with_funding")).sort("stop", "delay")
-        )
-        funded += [
-            f"### {kind.capitalize()}",
-            "",
-            markdown_table(short_table(part.filter(pl.col("delay") == "5 min")), 2),
-            "",
-            "Entry delay, 7-day hold, both periods:",
-            "",
-            markdown_table(by_delay, 2),
-            "",
-        ]
-    sections = []
-    for kind in KINDS:
+    sections = [
+        f"Left out as not tradable (under {MIN_VOLUME_24H:,.0f} USDT of perpetual volume in "
+        f"the 24 hours before): {inactive.height} events.",
+        "",
+    ]
+    for kind in kinds:
         part = frame.filter(pl.col("kind") == kind)
         if part.is_empty():
             continue
-        sides = ("long", "short") if kind.endswith("listing") else ("short",)
+        sides = ("long", "short") if is_listing(kind) else ("short",)
         measures = ["pre_24h", "reaction"] + [
             column for column in frame.columns if column.startswith(sides)
         ]
@@ -137,6 +144,40 @@ def run(
             markdown_table(summarize(part, measures, split), 2),
             "",
         ]
+    sections += [
+        "## Shorts with funding and wide stops",
+        "",
+        "The same entry, with the research 09 short model: holds of 1 to 14 days, stops "
+        "of 20% to 40% or none, funding summed over the time held, and a BTC-hedged "
+        "variant. Entry delays of 5 minutes, 1 hour, and 4 hours.",
+        "",
+    ]
+    for kind in short_kinds:
+        part = shorts.filter(pl.col("kind") == kind)
+        if part.is_empty():
+            continue
+        seven_days = part.filter(pl.col("hold") == "7d")
+        by_delay = (
+            seven_days.group_by("stop", "delay").agg(*_stats("with_funding")).sort("stop", "delay")
+        )
+        sections += [
+            f"### {kind.capitalize()}",
+            "",
+            markdown_table(short_table(part.filter(pl.col("delay") == "5 min")), 2),
+            "",
+            "Entry delay, 7-day hold, both periods:",
+            "",
+            markdown_table(by_delay, 2),
+            "",
+        ]
+    return frame, shorts, sections
+
+
+def run(
+    root: Path, notices: pl.DataFrame, since: datetime, split: date, symbols: set[str]
+) -> tuple[pl.DataFrame, pl.DataFrame, str]:
+    events = event_frame(notices, since, symbols)
+    frame, shorts, sections = study_kinds(root, events, KINDS, SHORT_KINDS, split)
     counts = events.group_by("kind").len().sort("kind")
     text = "\n".join(
         [
@@ -157,13 +198,6 @@ def run(
             f"- Periods split at {split}; t is the mean over its standard error.",
             "",
             *sections,
-            "## Shorts with funding and wide stops",
-            "",
-            "The same entry, with the research 09 short model: holds of 1 to 14 days, stops "
-            "of 20% to 40% or none, funding summed over the time held, and a BTC-hedged "
-            "variant. Entry delays of 5 minutes, 1 hour, and 4 hours.",
-            "",
-            *funded,
         ]
     )
     return frame, shorts, text

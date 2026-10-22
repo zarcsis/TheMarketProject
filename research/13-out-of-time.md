@@ -24,12 +24,15 @@ This is the cheapest out-of-sample evidence there is: it needs no positions. It 
 
 | Strategy | Closed trades | Mean with funding | Research estimate |
 |---|---|---|---|
-| `delisting-short-4h` | 4 | +8.8% (3 wins) | about +5% |
+| `delisting-short-4h` | 3 | +11.7% (3 wins) | about +5% |
 | `monitoring-short-1d` | 2 | −3.3% (0 wins) | +3.6% to +6.0% |
 | `listing-short-busy-7d` | 1 | +34.3% | +2% to +8% |
 | `airdrop-short-7d` | 0 | — | about +10% |
+| `exchange-delisting-short-7d` | 1 (and 1 open) | +17.5% | about +4.4% |
 
-**Seven trades say little.** The delisting short agrees with its research, as it did in research 04's own October check. The two Monitoring Tag events came from one announcement and both lost.
+Events on perpetuals that were not tradable are skipped, as the bot skips them. That means under 100,000 USDT of volume in the day before, or no Binance perpetual at all. In October that left out QUICK's delisting and two Bybit delistings.
+
+**Seven closed trades say little.** The delisting short agrees with its research, as it did in research 04's own October check. The two Monitoring Tag events came from one announcement and both lost.
 
 ## How to use it
 
