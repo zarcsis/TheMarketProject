@@ -110,7 +110,7 @@ The remote was tested on Demo Trading on 2026-10-22:
 - a second confirmation for `close`;
 - `strategies set` and `restart` from the phone.
 
-**A session started from the remote** lives until `/mb session stop`. It is detached from the remote, so restarting the remote does not end it.
+**A session started from the remote** lives until `/mb session stop`. It is detached from the remote, so restarting the remote does not end it. On the computer, `uv run mb session start --detach` starts the same kind of session.
 
 **What runs where.** Sessions, bots, and the remote run in the background without console windows. `mb ps` (or `/mb ps`) lists them with their process ids and start times. A process started in a terminal titles its window by its role, such as `mb live session`; processes started before 2026-10-22 may still show untitled `python` windows until their next restart. Do not close these windows:
 

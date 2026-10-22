@@ -155,11 +155,33 @@ async def _keep_time_synced(binance: Binance) -> None:
 
 
 @session_app.command("start")
-def session_start(ctx: typer.Context) -> None:
+def session_start(
+    ctx: typer.Context,
+    detach: Annotated[
+        bool,
+        typer.Option(
+            help="Run the session in the background, apart from this terminal or Claude Code "
+            "session, as the Telegram remote does; it lasts until `mb session stop`."
+        ),
+    ] = False,
+) -> None:
     """Start the bot and keep its heartbeat alive while this session lasts (blocking)."""
     env = _env(ctx)
-    set_title(f"mb {env} session")
     paths = Paths(env)
+    if detach:
+        from marketbot.session import background_python, spawn_detached
+
+        if bot_running(paths.pid):
+            typer.echo("A bot is already running; stop it first with `mb session stop`.", err=True)
+            raise typer.Exit(1)
+        pid = spawn_detached(
+            [background_python(), "-m", "marketbot", "--env", env, "session", "start"],
+            state_dir(env) / "session.pid",
+            log_dir(env) / "session.log",
+        )
+        typer.echo(f"Session started in the background ({env}); pid {pid}.")
+        return
+    set_title(f"mb {env} session")
     if not Settings().for_env(env).has_credentials:
         typer.echo(f"No {env} API credentials in .env.", err=True)
         raise typer.Exit(2)

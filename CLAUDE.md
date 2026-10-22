@@ -46,6 +46,7 @@ uv run mb keygen
 
 # Trading sessions (add --env demo for Binance Demo Trading)
 uv run mb session start        # blocking: run it as a background task; it is the session heartbeat
+uv run mb session start --detach  # the same, apart from this session; lasts until session stop
 uv run mb status               # equity, window, mode, risk, positions, recent events
 uv run mb events --limit 30
 uv run mb propose SOLUSDT long --stop 105.2 [--target 111.6] --why "..."
@@ -55,7 +56,7 @@ uv run mb research <study>     # feasibility, strategies, listings, delistings, 
 uv run mb session stop         # closes everything, stops the bot
 ```
 
-Stopping the Claude Code task that runs `mb session start` ends the session: within about two minutes the bot closes everything and exits.
+Stopping the Claude Code task that runs `mb session start` ends the session: within about two minutes the bot closes everything and exits. A session started with `--detach` (or from the Telegram remote) does not depend on Claude Code; the Demo Trading forward test runs that way.
 
 ## Live sessions
 
