@@ -1,0 +1,300 @@
+"""Session and trading commands of `mb`: the control plane between Claude and the bot.
+
+Every command that changes trading goes to the running bot through its command queue, so
+it passes the same risk checks as the bot's own decisions. The only exception is
+`mb flatten` when no bot is running: it closes everything directly.
+"""
+
+import asyncio
+from datetime import UTC, datetime
+from decimal import Decimal
+from typing import Annotated, Any
+
+import psutil
+import typer
+
+from marketbot.config import Env, Settings, log_dir, state_dir
+from marketbot.engine import Engine, Heartbeat
+from marketbot.exchange.client import Binance
+from marketbot.exchange.futures import BinanceFutures, Exchange
+from marketbot.exchange.virtual import VirtualBalance
+from marketbot.execution.executor import Executor
+from marketbot.risk.config import load_risk_config
+from marketbot.session import bot_running, keep_alive, spawn_bot
+from marketbot.state.store import Store
+
+session_app = typer.Typer(no_args_is_help=True, help="Start and stop trading sessions.")
+
+TIME_SYNC_INTERVAL_S = 1800
+
+
+def register(app: typer.Typer) -> None:
+    app.add_typer(session_app, name="session")
+    for command in (bot, status, events, pause, resume, risk_scale, propose, flatten):
+        app.command(hidden=command is bot)(command)
+
+
+class Paths:
+    def __init__(self, env: Env) -> None:
+        self.env = env
+        self.store = state_dir(env) / "bot.db"
+        self.heartbeat = state_dir(env) / "heartbeat"
+        self.pid = state_dir(env) / "bot.pid"
+        self.log = log_dir(env) / "bot.log"
+
+
+def _env(ctx: typer.Context) -> Env:
+    return ctx.obj or "live"
+
+
+# The bot process.
+
+
+def bot(ctx: typer.Context) -> None:
+    """Run the trading engine in the foreground (started by `mb session start`)."""
+    env = _env(ctx)
+    paths = Paths(env)
+    reason = asyncio.run(_run_bot(env, paths))
+    typer.echo(f"{datetime.now(UTC).isoformat()} bot stopped: {reason}")
+
+
+async def _run_bot(env: Env, paths: Paths) -> str:
+    settings = Settings().for_env(env)
+    store = Store(paths.store)
+    heartbeat = Heartbeat(paths.heartbeat)
+    if not heartbeat.alive(datetime.now(UTC)):
+        store.log("engine_refused", reason="no fresh session heartbeat")
+        return "no fresh session heartbeat"
+    async with Binance.from_settings(settings) as binance:
+        await binance.futures.sync_time()
+        venue = await _venue(env, settings, binance, store)
+        engine = Engine(venue, store, load_risk_config(), heartbeat=heartbeat)
+        sync = asyncio.create_task(_keep_time_synced(binance))
+        try:
+            return await engine.run()
+        finally:
+            sync.cancel()
+
+
+async def _venue(env: Env, settings: Settings, binance: Binance, store: Store) -> Exchange:
+    if env == "live":
+        return BinanceFutures(binance.futures, binance.spot)
+    venue = BinanceFutures(binance.futures)
+    offset = store.get("demo_offset")
+    if offset is None:
+        actual = (await venue.account()).equity
+        offset = actual - Decimal(str(settings.demo_equity))
+        store.put("demo_offset", offset)
+        store.log("demo_offset", actual_equity=actual, offset=offset)
+    return VirtualBalance(venue, Decimal(offset))
+
+
+async def _keep_time_synced(binance: Binance) -> None:
+    while True:
+        await asyncio.sleep(TIME_SYNC_INTERVAL_S)
+        try:
+            await binance.futures.sync_time()
+        except Exception as exc:
+            typer.echo(f"time sync failed: {exc}")
+
+
+# Sessions.
+
+
+@session_app.command("start")
+def session_start(ctx: typer.Context) -> None:
+    """Start the bot and keep its heartbeat alive while this session lasts (blocking)."""
+    env = _env(ctx)
+    paths = Paths(env)
+    if not Settings().for_env(env).has_credentials:
+        typer.echo(f"No {env} API credentials in .env.", err=True)
+        raise typer.Exit(2)
+    if bot_running(paths.pid):
+        typer.echo("A bot is already running; stop it first with `mb session stop`.", err=True)
+        raise typer.Exit(1)
+    heartbeat = Heartbeat(paths.heartbeat)
+    heartbeat.touch()
+    pid = spawn_bot(env, paths.pid, paths.log)
+    process = psutil.Process(pid)
+    try:
+        process.wait(timeout=5)
+    except psutil.TimeoutExpired:
+        pass  # still running, as it should be
+    else:
+        typer.echo(f"The bot exited at start; see {paths.log}.", err=True)
+        raise typer.Exit(1)
+    typer.echo(f"Session started ({env}); bot pid {pid}, log {paths.log}.")
+    reason = keep_alive(heartbeat, process, echo=typer.echo)
+    typer.echo(f"Heartbeat stopped: {reason}.")
+
+
+@session_app.command("stop")
+def session_stop(ctx: typer.Context) -> None:
+    """Close every position and order, then stop the bot."""
+    paths = Paths(_env(ctx))
+    process = bot_running(paths.pid)
+    if process is None:
+        typer.echo("No bot is running.")
+        return
+    result = _send(paths, "stop", {"reason": "session stopped"}, timeout_s=60)
+    typer.echo(f"Stop: {result}")
+    try:
+        process.wait(timeout=120)
+    except psutil.TimeoutExpired:
+        typer.echo("The bot has not exited yet; check `mb status`.", err=True)
+        raise typer.Exit(1) from None
+    typer.echo("Bot stopped.")
+
+
+# Reading state.
+
+
+def status(ctx: typer.Context) -> None:
+    """Show equity, the window, risk, positions, and recent events."""
+    paths = Paths(_env(ctx))
+    store = Store(paths.store)
+    snapshot = store.get("status")
+    running = bot_running(paths.pid)
+    typer.echo(f"Bot: {'running, pid ' + str(running.pid) if running else 'not running'}")
+    if snapshot is None:
+        typer.echo("No status yet.")
+        return
+    typer.echo(render_status(snapshot))
+    typer.echo("\nRecent events:")
+    for event in store.last_events(8):
+        typer.echo(f"  {event.ts:%H:%M:%S} {event.kind} {_brief(event.payload)}")
+
+
+def events(
+    ctx: typer.Context,
+    limit: Annotated[int, typer.Option(help="How many events.")] = 30,
+) -> None:
+    """Print the latest journal events."""
+    store = Store(Paths(_env(ctx)).store)
+    for event in store.last_events(limit):
+        typer.echo(f"{event.ts:%Y-%m-%d %H:%M:%S} #{event.id} {event.kind} {_brief(event.payload)}")
+
+
+def render_status(snapshot: dict[str, Any]) -> str:
+    lines = [f"Updated: {snapshot['time']}"]
+    if snapshot.get("error"):
+        lines.append(f"Error: {snapshot['error']}")
+    if snapshot.get("stopping"):
+        lines.append(f"Stopping: {snapshot['stopping']}")
+    controls = snapshot.get("controls") or {}
+    lines.append(
+        f"Controls: paused={controls.get('paused')}, risk scale={controls.get('risk_scale')}, "
+        f"heartbeat age={snapshot.get('heartbeat_age_s')} s"
+    )
+    window = snapshot.get("window")
+    if window:
+        lines.append(
+            f"Window {window['window_id']}: mode {window['mode']}, E0 {_money(window['e0'])}, "
+            f"target {_money(window['target'])}, loss line {_money(window['loss_line'])}, "
+            f"entry floor {_money(window['entry_floor'])}, trades {window['trades']}, "
+            f"closes {window['closes_at']}"
+        )
+    project = snapshot.get("project")
+    if project:
+        lines.append(
+            f"Project: start {_money(project['starting_equity'])}, paused {project['paused']}, "
+            f"loss-line streak {project['defense_streak']}"
+        )
+    account = snapshot.get("account")
+    if account:
+        lines.append(
+            f"Equity {_money(account['equity'])} (futures {_money(account['margin_balance'])}, "
+            f"other wallets {_money(account['other_wallets'])}), available "
+            f"{_money(account['available_balance'])}, open risk {_money(account['open_risk'])}"
+        )
+        for position in account["positions"]:
+            lines.append(
+                f"  {position['symbol']} {position['side']} {position['qty']} @ mark "
+                f"{position['mark']}, stop {position['stop']}"
+            )
+    return "\n".join(lines)
+
+
+# Commands to the running bot.
+
+
+def pause(ctx: typer.Context) -> None:
+    """Stop opening new positions (open positions keep their stops)."""
+    typer.echo(_send(Paths(_env(ctx)), "pause", {}))
+
+
+def resume(ctx: typer.Context) -> None:
+    """Allow new positions again."""
+    typer.echo(_send(Paths(_env(ctx)), "resume", {}))
+
+
+def risk_scale(
+    ctx: typer.Context,
+    scale: Annotated[str, typer.Argument(help="Multiplier on risk per trade, 0 to 1.")],
+) -> None:
+    """Scale risk per trade down (never above the configured limit)."""
+    typer.echo(_send(Paths(_env(ctx)), "risk_scale", {"scale": scale}))
+
+
+def propose(
+    ctx: typer.Context,
+    symbol: Annotated[str, typer.Argument(help="USD-M perpetual, e.g. SOLUSDT.")],
+    side: Annotated[str, typer.Argument(help="long or short.")],
+    stop: Annotated[str, typer.Option(help="Stop price (required).")],
+    target: Annotated[str | None, typer.Option(help="Take-profit price.")] = None,
+    why: Annotated[str, typer.Option(help="Rationale for the journal.")] = "",
+) -> None:
+    """Propose a trade; the bot sizes it under the risk rules or rejects it."""
+    if side.lower() not in ("long", "short"):
+        raise typer.BadParameter("side must be long or short")
+    payload = {"symbol": symbol, "side": side, "stop": stop, "target": target, "why": why}
+    typer.echo(_send(Paths(_env(ctx)), "propose", payload, timeout_s=60))
+
+
+def flatten(ctx: typer.Context) -> None:
+    """Close every position and cancel every order (works without a running bot)."""
+    env = _env(ctx)
+    paths = Paths(env)
+    if bot_running(paths.pid):
+        typer.echo(_send(paths, "flatten", {"reason": "manual flatten"}, timeout_s=60))
+        return
+    typer.echo("No bot is running; closing directly.")
+    store = Store(paths.store)
+
+    async def run() -> bool:
+        settings = Settings().for_env(env)
+        async with Binance.from_settings(settings) as binance:
+            await binance.futures.sync_time()
+            return await Executor(BinanceFutures(binance.futures), store.log).flatten("manual")
+
+    flat = asyncio.run(run())
+    if flat:
+        for symbol in store.positions():
+            store.delete_position(symbol)
+    typer.echo("Flat." if flat else "Not flat; check the account.")
+    if not flat:
+        raise typer.Exit(1)
+
+
+def _send(paths: Paths, kind: str, payload: dict[str, Any], timeout_s: float = 30) -> str:
+    if bot_running(paths.pid) is None:
+        typer.echo("No bot is running; start one with `mb session start`.", err=True)
+        raise typer.Exit(1)
+    store = Store(paths.store)
+    command_id = store.enqueue(kind, payload)
+    command = store.wait(command_id, timeout_s)
+    if command is None:
+        typer.echo(f"No answer within {timeout_s:.0f} s; the command stays queued.", err=True)
+        raise typer.Exit(1)
+    return f"{command.status}: {_brief(command.result or {})}"
+
+
+def _money(value: Any) -> str:
+    if value is None:
+        return "n/a"
+    return f"{Decimal(str(value)):.2f}"
+
+
+def _brief(payload: dict[str, Any], limit: int = 300) -> str:
+    text = ", ".join(f"{key}={value}" for key, value in payload.items())
+    return text if len(text) <= limit else text[: limit - 3] + "..."

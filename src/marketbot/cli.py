@@ -8,6 +8,7 @@ from typing import Annotated
 import httpx
 import typer
 
+from marketbot import control
 from marketbot.checks.account import (
     CheckResult,
     Status,
@@ -25,6 +26,21 @@ data_app = typer.Typer(no_args_is_help=True, help="Historical market data.")
 app.add_typer(data_app, name="data")
 research_app = typer.Typer(no_args_is_help=True, help="Research studies and reports.")
 app.add_typer(research_app, name="research")
+control.register(app)
+
+
+@app.callback()
+def main(
+    ctx: typer.Context,
+    env: Annotated[
+        str, typer.Option(envvar="MB_ENV", help="live, or demo for Binance Demo Trading.")
+    ] = "live",
+) -> None:
+    """Research trading bot for a small Binance account."""
+    if env not in ("live", "demo"):
+        raise typer.BadParameter("env must be live or demo")
+    ctx.obj = env
+
 
 PRIVATE_KEY_NAME = "binance_ed25519_private.pem"
 PUBLIC_KEY_NAME = "binance_ed25519_public.pem"

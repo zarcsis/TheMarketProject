@@ -216,7 +216,12 @@ These are the initial values; all are in [`config/risk.toml`](../config/risk.tom
 - Every position has an exchange-side stop, so if the bot process itself dies, the loss on each position is still bounded.
 - The PC must not sleep during a session.
 
-**To verify in Phase 2.** The heartbeat design assumes that ending a Claude Code session on Windows kills background child processes. If it does not, the fallback is for Claude to refresh the heartbeat on every loop tick, with a longer timeout.
+**Verified in Phase 2 (2026-10-22, Windows 11).**
+
+- Stopping a Claude Code background task kills its whole process tree. Claude Code finds the tree through parent links, not through a Windows job object.
+- A process that is merely detached dies with the tree. So `mb session start` launches the bot through an intermediate process that exits at once. The bot then has no living ancestor in the tree and survives to clean up.
+- The heartbeat process is `mb session start` itself. It runs as a Claude Code background task and stops when that task is stopped.
+- It also stops when any of its session ancestors exits, which covers Claude Code closing without stopping the task. The ancestors are the shell, `claude.exe`, and VS Code.
 
 ## 5. Instruments
 
