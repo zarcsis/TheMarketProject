@@ -10,7 +10,10 @@ Covers from 22:00 to 09:00 local time (UTC−3). The owner asked for Phase 3 (st
    - after a Monitoring Tag announcement;
    - after a busy new listing.
 3. **Expectations, honestly.** In-sample, the three event strategies together simulate to about ×3.7 in two years (about +0.2% a day) with a 14% realized drawdown. That is an upper bound. The +10% per day goal is not supported by anything found.
-4. **The event strategies are implemented live and drilled end to end on Demo Trading.** The forward test is running on Demo Trading.
+4. **The event strategies are implemented live and drilled end to end on Demo Trading.** The forward test is still running.
+   - It reached the +10% window target overnight, with the exit protection working as designed.
+   - The trades came from the Donchian strategies, which have no backtested edge, so this is luck.
+   - It also found three more defects, all fixed.
 
 ## What was built
 
@@ -78,6 +81,14 @@ Covers from 22:00 to 09:00 local time (UTC−3). The owner asked for Phase 3 (st
 | 07:43 | Equity reached +10% (137.57 against the 137.50 target): the window entered PROTECT. All three stops moved to keep a stop-out above the 136.25 lock floor; open risk 1.52 against a 1.53 cushion. |
 | 07:45 | DOGE closed by its tightened stop, with the profit locked. |
 | 09:00 | Four new shorts in one tick: the defect below. |
+
+**Final state at 11:22 UTC (08:22 local).**
+
+- **Window.** Still in PROTECT. Equity 137.46 on the virtual 125 USDT account (+10.0%). Four shorts remain open (DOGE, ETH, SUI, ZEC) with stops near the market; open risk is 1.10 against a 1.21 cushion above the lock floor.
+- **Exchange income** (`mb report`), 00:52 to 11:22 UTC: **+7.43 USDT** net. That is realized +7.88, commission −0.47, funding +0.02.
+- **Contributors:** almost all of it is DOGE (+4.50) and MAGMA (+3.56). The −0.32 on SOL comes from the evening drills.
+- **Activity:** eight strategy entries and four exchange-side stop-outs.
+- **Errors:** five strategy errors, all IRYSUSDT, a symbol Demo Trading does not list.
 
 **The result is luck, not evidence.** It came from strategies with no backtested edge. What it does show is that profit locking, trailing stops, and break-even moves work on a real venue.
 
