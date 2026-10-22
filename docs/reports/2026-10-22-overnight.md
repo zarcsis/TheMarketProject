@@ -50,6 +50,7 @@ Covers from 22:00 to 09:00 local time (UTC−3). The owner asked for Phase 3 (st
 | [03](../../research/03-listings.md) | Short new listings | **Positive in both years**, after funding and with a BTC hedge. The busy 7-day short makes +2.3% and +8.3% per trade. Works for entries until midday UTC. Busy crypto listings became rare in 2026. |
 | [04](../../research/04-delistings.md) | Short after delisting announcements | **The strongest result.** About +5% per trade on 1-minute bars, t 2.7 over 35 announcements, positive for spot and futures delistings. October 2026, after the data: +8.3% over 4 events. |
 | [05](../../research/05-spot-listings.md) | Long after spot listing announcements | **Negative.** The pump is over before a bot can act. |
+| [06](../../research/06-funding.md) | Trade extreme funding | **Negative.** Squeezes are rare; signs flip between years. |
 | [07](../../research/07-monitoring-tag.md) | Short after the Monitoring Tag | **Positive in both years.** +6.0% and +3.6% per trade on a 1-day hold, t 2.2 over 19 announcements. |
 | [08](../../research/08-portfolio.md) | All event strategies under the risk rules | About ×3.7 over 703 days, 14% realized drawdown; 2026 alone about +55% annualized. In-sample upper bound. |
 
@@ -87,5 +88,4 @@ Covers from 22:00 to 09:00 local time (UTC−3). The owner asked for Phase 3 (st
 
 ## Next
 
-- **Research 06 (extreme funding)** is waiting for the funding history download.
 - **Keep the forward test running on Demo Trading** toward the Phase 4 gate: 5 session-days without rule violations.

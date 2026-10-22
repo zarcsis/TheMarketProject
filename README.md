@@ -41,6 +41,7 @@ As of 2026-10-22: setup, the trading engine, and the strategy research are done,
 | [03](research/03-listings.md) | Do new listings drift down? | Yes. Shorting busy listings for a week is positive in both years. |
 | [04](research/04-delistings.md) | Do tokens keep falling after a delisting announcement? | Yes. A 4-hour short averages about +5% per trade. |
 | [05](research/05-spot-listings.md) | Can a bot ride spot listing pumps? | No. The pump is over before a bot can act. |
+| [06](research/06-funding.md) | Do extreme funding rates predict the next days? | No. Squeezes happen, but too rarely and inconsistently to trade. |
 | [07](research/07-monitoring-tag.md) | Do tokens fall after Binance adds the Monitoring Tag? | Yes. A 1-day short averages +3.6% to +6.0% per trade. |
 | [08](research/08-portfolio.md) | What do the event strategies earn together under the risk rules? | About ×3.7 in two years with a 14% drawdown, an in-sample upper bound. |
 
