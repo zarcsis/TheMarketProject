@@ -96,6 +96,8 @@ The remote is a Telegram bot that runs on the bot's computer and answers only th
    - at scale 0.25 the position would be 4.50 USDT, so every entry is rejected;
    - at scale 0.3 it is 5.45 USDT, risking 1.10 USDT.
 
+   Strategies with a 40% stop (`listing-short-busy-7d`, `airdrop-short-7d`) need a scale of about 0.6 at this account size. At 0.6 the position is 5.46 USDT, risking 2.20 USDT; at 0.5 it would still be below the minimum.
+
    A rejected strategy entry is reported on the remote (`entry_rejected`).
 6. `/mb auto on`: the strategies may trade from now on. On the very first start they are off. After that the setting is kept across restarts, so a restarted bot trades again by itself.
 
