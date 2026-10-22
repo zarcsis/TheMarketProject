@@ -275,3 +275,17 @@ def test_strategy_memory_survives_a_restart(tmp_path: Path) -> None:
     memory.add("ABCUSDT@2026-10-22T07:00:00+00:00")
     assert "ABCUSDT@2026-10-22T07:00:00+00:00" in Memory(store, "strategy:test:done")
     assert "XYZUSDT@x" not in Memory(store, "strategy:test:done")
+
+
+async def test_several_entries_in_one_tick_respect_the_limits(tmp_path: Path) -> None:
+    # Found on Demo Trading: entries proposed in the same tick were all checked against the
+    # account as it was at the start of the tick.
+    strategy = Scripted(
+        Propose("SOLUSDT", Side.LONG, D(98), None, "scripted", "a"),
+        Propose("ETHUSDT", Side.LONG, D(2940), None, "scripted", "b"),
+        Propose("XRPUSDT", Side.LONG, D("1.96"), None, "scripted", "c"),
+    )
+    rig = await rig_with(tmp_path, strategy)
+    assert sorted(rig.exchange.holdings) == ["ETHUSDT", "SOLUSDT"]  # two per bucket
+    rejected = [e.payload for e in rig.store.events(limit=500) if e.kind == "strategy_entry"]
+    assert "too many LONG positions in bucket btc_beta" in str(rejected[-1])

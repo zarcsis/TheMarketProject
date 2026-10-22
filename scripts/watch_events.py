@@ -47,9 +47,7 @@ def main() -> None:
 
     store = Store(Path(args.db))
     last = max((event.id for event in store.last_events(1)), default=0)
-    deadline = (
-        datetime.now(UTC) + timedelta(minutes=args.max_minutes) if args.max_minutes else None
-    )
+    deadline = datetime.now(UTC) + timedelta(minutes=args.max_minutes) if args.max_minutes else None
     while deadline is None or datetime.now(UTC) < deadline:
         found = False
         for event in store.events(after_id=last, limit=200):

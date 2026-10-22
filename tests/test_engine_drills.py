@@ -46,8 +46,8 @@ class Clock:
 class Rig:
     def __init__(self, tmp_path: Path, *, heartbeat: bool = False) -> None:
         self.exchange = SimulatedExchange(
-            {name: symbol(name) for name in ("SOLUSDT", "ETHUSDT")},
-            {"SOLUSDT": D(100), "ETHUSDT": D(3000)},
+            {name: symbol(name) for name in ("SOLUSDT", "ETHUSDT", "XRPUSDT")},
+            {"SOLUSDT": D(100), "ETHUSDT": D(3000), "XRPUSDT": D(2)},
         )
         self.store = Store(tmp_path / "bot.db")
         self.clock = Clock()

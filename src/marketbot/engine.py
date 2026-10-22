@@ -448,6 +448,11 @@ class Engine:
             return "error", {"error": str(exc)}
         self.store.put_position(symbol, position)
         self.store.put("window", record_trade(window))
+        # The next entry in this tick must see this position: its limits and the open-risk
+        # budget are checked against the account. Found on Demo Trading, where four entries
+        # in one tick all passed against the same stale snapshot.
+        if await self._fetch_account(self.clock()) is None:
+            self.last_account = None  # no fresh state: no more entries until the next tick
         return "done", {"position": asdict(position), "risk": decision.risk}
 
     # Strategies.
