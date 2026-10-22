@@ -53,6 +53,18 @@ class GameRules:
 # Daily data.
 
 
+def non_crypto_symbols(exchange_info: dict) -> frozenset[str]:
+    """TradFi perpetuals (equities, commodities, FX, pre-market) and index contracts.
+
+    Delisted symbols are absent from exchangeInfo and count as crypto; nearly all are.
+    """
+    return frozenset(
+        row["symbol"]
+        for row in exchange_info["symbols"]
+        if row.get("contractType") != "PERPETUAL" or row.get("underlyingType") != "COIN"
+    )
+
+
 def daily_features(klines: pl.DataFrame) -> pl.DataFrame:
     """Per symbol and UTC day: return, best excursions from the open, and volume."""
     return (

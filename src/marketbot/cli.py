@@ -261,8 +261,15 @@ def research_listings(
 ) -> None:
     """Run research 03 (short newly listed perpetuals)."""
     from marketbot.research import listings
+    from marketbot.research.feasibility import non_crypto_symbols
 
-    trades, text = listings.run(root, date.fromisoformat(archive_start), date.fromisoformat(split))
+    info = httpx.get("https://fapi.binance.com/fapi/v1/exchangeInfo", timeout=30).json()
+    trades, text = listings.run(
+        root,
+        date.fromisoformat(archive_start),
+        date.fromisoformat(split),
+        exclude=non_crypto_symbols(info),
+    )
     trades.write_parquet(Path("data/research/03-listing-trades.parquet"))
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text, encoding="utf-8")
