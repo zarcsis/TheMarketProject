@@ -8,7 +8,7 @@ import json
 import sqlite3
 import time
 from dataclasses import asdict, dataclass, fields, is_dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from enum import Enum
 from pathlib import Path
@@ -175,7 +175,7 @@ def dumps(value: Any) -> str:
 def _encode(value: Any) -> Any:
     if isinstance(value, Decimal):
         return format(value, "f")
-    if isinstance(value, datetime):
+    if isinstance(value, (datetime, date)):
         return value.isoformat()
     if isinstance(value, Enum):
         return value.value

@@ -180,6 +180,7 @@ def test_store_round_trips_state(tmp_path: Path) -> None:
     assert [c.id for c in store.pending()] == [command_id]
     store.complete(command_id, "done", {"ok": True})
     assert store.wait(command_id, timeout_s=1).result == {"ok": True}
+    store.log("universe", day=datetime(2026, 10, 22).date(), symbols=["A"])
     store.log("decision", kind="not a clash")
     assert store.last_events(1)[0].payload == {"kind": "not a clash"}
 
