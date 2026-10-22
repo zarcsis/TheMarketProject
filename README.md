@@ -20,12 +20,29 @@ Everything except secrets is published in this repository:
 
 ## Status
 
-**Phase 0: setup and safety.** Implemented so far:
+As of 2026-10-22: setup, the trading engine, and the strategy research are done, and the forward test on Binance Demo Trading is running. Nothing has traded with real money yet.
 
-- `mb check`: read-only checks of connectivity, API key safety, and account setup;
-- `mb keygen`: generates an Ed25519 key pair for the Binance API.
+**Built:**
 
-See the [plan](docs/PROJECT_PLAN.md) for the phases ahead.
+- **Risk manager.** Hard limits the strategies and Claude cannot loosen:
+  - a 24-hour window with a +10% target and a −9% loss line;
+  - profit locking above the target;
+  - an open-risk budget;
+  - a project-level pause.
+- **Execution engine.** Every position has an exchange-side stop. The engine reconciles with the exchange and closes everything when the session ends. It was drilled on Binance Demo Trading: [report](docs/drills/2026-10-22-phase2-demo.md).
+- **Backtester and live strategy runtime.** Live strategies run the same signal code as the backtests.
+
+**Research, two years of Binance USD-M data, delisted symbols included:**
+
+| # | Question | Result |
+|---|---|---|
+| [01](research/01-feasibility.md) | Is +10% a day reachable without an edge? | No. Every variant loses after costs. |
+| [02](research/02-strategies.md) | Do intraday technical rules (breakouts, fades, opening range) beat costs? | No, in either year. |
+| [03](research/03-listings.md) | Do new listings drift down? | Yes. Shorting busy listings for a week is positive in both years. |
+| [04](research/04-delistings.md) | Do tokens keep falling after a delisting announcement? | Yes. A 4-hour short averages about +5% per trade. |
+| [05](research/05-spot-listings.md) | Can a bot ride spot listing pumps? | No. The pump is over before a bot can act. |
+
+**Realistic expectation.** The two event strategies together simulate to about +20% a year, not +10% a day. [LIVE.md](docs/LIVE.md) explains how the account owner starts live trading.
 
 ## Quick start
 
@@ -67,6 +84,17 @@ uv run mb check --public-only   # connectivity, clock offset, symbol filters; no
    ```
 
    It exits with a failure if withdrawals are enabled or the key is not IP-restricted.
+
+## Running
+
+```sh
+uv run mb market                        # market brief from public data
+uv run mb --env demo session start      # a session on Binance Demo Trading (blocking)
+uv run mb --env demo status             # in another terminal
+uv run mb research <study>              # feasibility, strategies, listings, delistings, ...
+```
+
+See [CLAUDE.md](CLAUDE.md) for every command and [docs/LIVE.md](docs/LIVE.md) for live trading.
 
 ## Development
 
