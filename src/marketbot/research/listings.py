@@ -29,7 +29,9 @@ class Variant:
     stop: float  # fraction above entry
 
 
-VARIANTS = [Variant(k, h, s) for k in (1, 3) for h in (1, 3, 7) for s in (0.15, 0.25, 0.40)]
+VARIANTS = [Variant(k, h, s) for k in (1, 3) for h in (1, 3, 7, 14) for s in (0.15, 0.25, 0.40)]
+# Fixed in advance (not fitted): listing-day quote volume that counts as a busy listing.
+BUSY_LISTING_VOLUME = 50_000_000.0
 
 
 def listing_days(daily: pl.DataFrame, archive_start: date) -> pl.DataFrame:
@@ -53,7 +55,7 @@ def simulate_short(days: pl.DataFrame, variant: Variant) -> dict | None:
     ret = (entry - exit_price) / entry - TAKER * (entry + exit_price) / entry
     return {
         "symbol": window["symbol"][0],
-        "entry_day": window["day"][0],
+        "entry_date": window["day"][0],
         "ret": float(ret),
         "r": float(ret / variant.stop),
         "reason": reason,
@@ -86,6 +88,12 @@ def run(root: Path, archive_start: date, split: date) -> tuple[pl.DataFrame, str
     else:
         daily = daily.with_columns(funding=pl.lit(0.0))
     listings = listing_days(daily, archive_start)
+    listing_volume = (
+        daily.join(listings, on="symbol")
+        .filter(pl.col("day") == pl.col("listed"))
+        .select("symbol", listing_volume="quote_volume")
+    )
+    btc = daily.filter(pl.col("symbol") == "BTCUSDT").select("day", "open", "close")
     rows = []
     for symbol, listed in listings.iter_rows():
         days = daily.filter((pl.col("symbol") == symbol) & (pl.col("day") >= listed))
@@ -93,24 +101,44 @@ def run(root: Path, archive_start: date, split: date) -> tuple[pl.DataFrame, str
             result = simulate_short(days, variant)
             if result is not None:
                 rows.append({**result, **variant.__dict__, "listed": listed})
-    trades = pl.DataFrame(rows).with_columns(
-        period=pl.when(pl.col("listed") < split)
-        .then(pl.lit("first half"))
-        .otherwise(pl.lit("second half")),
-        ret_with_funding=pl.col("ret") + pl.col("funding"),
+    trades = (
+        pl.DataFrame(rows)
+        .with_columns(exit_date=pl.col("entry_date") + pl.duration(days=1) * (pl.col("held") - 1))
+        .join(btc.select(entry_date="day", btc_open="open"), on="entry_date", how="left")
+        .join(btc.select(exit_date="day", btc_close="close"), on="exit_date", how="left")
+        .join(listing_volume, on="symbol", how="left")
+        .with_columns(
+            period=pl.when(pl.col("listed") < split)
+            .then(pl.lit("first half"))
+            .otherwise(pl.lit("second half")),
+            ret_with_funding=pl.col("ret") + pl.col("funding"),
+            busy=pl.col("listing_volume") >= BUSY_LISTING_VOLUME,
+        )
+        .with_columns(
+            # Short the listing, long the same notional of BTC.
+            hedged=pl.col("ret_with_funding") + pl.col("btc_close") / pl.col("btc_open") - 1
+        )
     )
+    both = pl.concat(
+        [
+            trades.with_columns(listings=pl.lit("all")),
+            trades.filter(pl.col("busy")).with_columns(listings=pl.lit("busy")),
+        ]
+    )
+    with_funding = pl.col("ret_with_funding")
     summary = (
-        trades.group_by("entry_day", "hold_days", "stop", "period")
+        both.group_by("listings", "entry_day", "hold_days", "stop", "period")
         .agg(
             pl.len().alias("trades"),
             (pl.col("ret") > 0).mean().mul(100).alias("win %"),
             pl.col("ret").mean().mul(100).alias("mean %"),
             pl.col("ret").median().mul(100).alias("median %"),
-            pl.col("ret_with_funding").mean().mul(100).alias("mean with funding %"),
+            with_funding.mean().mul(100).alias("with funding %"),
+            pl.col("hedged").mean().mul(100).alias("BTC-hedged %"),
             (pl.col("reason") == "stop").mean().mul(100).alias("stopped %"),
-            (pl.col("ret").mean() / pl.col("ret").std() * pl.len().sqrt()).alias("t"),
+            (with_funding.mean() / with_funding.std() * pl.len().sqrt()).alias("t"),
         )
-        .sort("entry_day", "hold_days", "stop", "period")
+        .sort("listings", "entry_day", "hold_days", "stop", "period")
     )
     text = "\n".join(
         [
@@ -125,6 +153,10 @@ def run(root: Path, archive_start: date, split: date) -> tuple[pl.DataFrame, str
             f"- Costs: taker {TAKER:.2%} per side, stop slippage {STOP_SLIPPAGE:.1%}. "
             "Funding: the sum of the symbol's funding rates over the holding days "
             "(per unit of notional; a short receives positive and pays negative funding).",
+            "- BTC-hedged: the short's return with funding plus a long in BTC of the same "
+            "notional over the same days.",
+            f"- Busy listings: listing-day quote volume of at least "
+            f"{BUSY_LISTING_VOLUME / 1e6:.0f}M USDT (threshold fixed in advance).",
             "",
             markdown_table(summary, 2),
             "",
