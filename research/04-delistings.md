@@ -35,7 +35,7 @@ Average price path relative to the first bar after the announcement:
 | +6 hours | −3.8% | −7.7% |
 | +24 hours | −5.7% | −9.1% |
 
-Most of the drop between −1 hour and 0 happens in the 5-minute bar of the announcement. The API's release timestamp is tens of seconds after publication. That move belongs to the fastest traders.
+The drop between −1 hour and 0 happens within minutes of publication. The release timestamp falls a median 9 seconds into a 5-minute bar. That bar falls 5.3% on average (median 7.8%), while the 55 minutes before it are flat. That move belongs to the fastest traders.
 
 ### 2. The continuation after the first crash is tradable
 
