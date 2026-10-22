@@ -531,6 +531,26 @@ def research_upbit(
     typer.echo(f"{frame.height} events; report written to {out}")
 
 
+@research_app.command("reversal")
+def research_reversal(
+    split: Annotated[str, typer.Option(help="First day of the second year.")] = "2025-10-01",
+    out: Annotated[Path, typer.Option(help="Report to write.")] = Path(
+        "research/results/12-reversal.md"
+    ),
+    root: Annotated[Path, typer.Option(help="Storage directory.")] = archive.DEFAULT_ROOT,
+) -> None:
+    """Run research 12 (cross-sectional weekly reversal and momentum)."""
+    from marketbot.research import reversal
+    from marketbot.research.feasibility import non_crypto_symbols
+
+    info = httpx.get("https://fapi.binance.com/fapi/v1/exchangeInfo", timeout=30).json()
+    weeks, text = reversal.run(root, non_crypto_symbols(info), date.fromisoformat(split))
+    weeks.write_parquet(Path("data/research/12-reversal-weeks.parquet"))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text, encoding="utf-8")
+    typer.echo(f"{weeks.height} weekly cohorts; report written to {out}")
+
+
 @research_app.command("unlocks")
 def research_unlocks(
     start: Annotated[str, typer.Option(help="First unlock day.")] = "2024-10-15",

@@ -178,3 +178,25 @@ def test_unlock_windows_short_from_entry_to_exit_open() -> None:
     # Short at the open of Jan 2 (100), cover at the open of Jan 5 (70), funding of 3 days.
     expected = 0.30 - 0.0005 * 1.7 + 0.003
     assert window["with_funding"][0] == pytest.approx(expected)
+
+
+def test_reversal_signals_use_only_past_data_for_the_rank() -> None:
+    from marketbot.research.reversal import HOLD, LOOKBACK, MIN_AGE_DAYS, signals
+
+    days = [date(2026, 1, 1) + timedelta(days=i) for i in range(MIN_AGE_DAYS + 20)]
+    opens = [100.0 + i for i in range(len(days))]
+    panel = pl.DataFrame(
+        {
+            "symbol": ["A"] * len(days),
+            "day": days,
+            "open": opens,
+            "close": [o + 1 for o in opens],
+            "quote_volume": [1e9] * len(days),
+            "funding": [0.001] * len(days),
+        }
+    )
+    row = signals(panel).filter(pl.col("day") == days[MIN_AGE_DAYS]).row(0, named=True)
+    i = MIN_AGE_DAYS
+    assert row["past"] == pytest.approx((opens[i - 1] + 1) / opens[i - LOOKBACK] - 1)
+    assert row["forward"] == pytest.approx(opens[i + HOLD] / opens[i] - 1)
+    assert row["short"] == pytest.approx(-row["forward"] - 0.001 + HOLD * 0.001)
