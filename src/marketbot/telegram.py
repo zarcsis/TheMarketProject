@@ -59,6 +59,7 @@ NOTIFY = {
     "account_access_restored",
     "announcements_down",
     "announcements_restored",
+    "entry_rejected",
 }
 
 HELP = """TheMarketProject remote.
@@ -493,6 +494,13 @@ def describe(kind: str, payload: dict[str, Any], ts: datetime) -> str:
                 f"{time} ANNOUNCEMENTS FEED DOWN for {payload.get('strategy')} since "
                 f"{str(payload.get('since', ''))[11:16]} UTC: {str(payload.get('error'))[:120]}. "
                 "The strategy cannot see new events until it recovers."
+            )
+        case "entry_rejected":
+            detail = payload.get("detail") or {}
+            why = "; ".join(detail.get("reasons") or []) or detail.get("error") or ""
+            return (
+                f"{time} {payload.get('strategy')} could not enter {payload.get('symbol')} "
+                f"({payload.get('status')}): {str(why)[:200]}"
             )
         case "announcements_restored":
             return f"{time} announcements feed restored for {payload.get('strategy')}"

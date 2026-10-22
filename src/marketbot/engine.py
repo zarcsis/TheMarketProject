@@ -533,6 +533,15 @@ class Engine:
                     }
                 )
                 self.store.log("strategy_entry", status=status, result=result, why=action.why)
+                if status != "done":
+                    # A strategy's event that does not become a trade: the owner should know.
+                    self.store.log(
+                        "entry_rejected",
+                        symbol=action.symbol,
+                        strategy=action.strategy,
+                        status=status,
+                        detail=result,
+                    )
             case MoveStop() if managed is not None:
                 direction = 1 if managed.side is Side.LONG else -1
                 if (action.stop - managed.stop) * direction <= 0:

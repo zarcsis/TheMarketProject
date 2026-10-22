@@ -396,3 +396,30 @@ async def test_lost_api_access_is_reported_once_and_restored(rig: Rig) -> None:
     assert events.count("account_access_lost") == 1  # after 60 s of failures, once
     await rig.tick()
     assert "account_access_restored" in rig.events()
+
+
+async def test_a_strategy_entry_below_the_symbol_minimum_is_reported(tmp_path: Path) -> None:
+    from marketbot.strategy.runtime import Propose
+
+    class OneShort:
+        name = "test-short"
+
+        def __init__(self) -> None:
+            self.done = False
+
+        async def step(self, now, positions):
+            if self.done:
+                return []
+            self.done = True
+            return [Propose("SOLUSDT", Side.SHORT, D(120), None, "test-short", "test", "event")]
+
+    rig = Rig(tmp_path)
+    rig.engine = Engine(
+        rig.exchange, rig.store, RiskConfig(), clock=rig.clock, strategies=[OneShort()]
+    )
+    await rig.tick()
+    await rig.command("risk_scale", scale="0.01")  # 0.03 USDT of risk: below 5 USDT notional
+    await rig.command("auto", on=True)
+    await rig.tick()
+    assert "entry_rejected" in rig.events()
+    assert not rig.exchange.holdings

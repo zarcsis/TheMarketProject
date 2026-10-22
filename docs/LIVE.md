@@ -51,7 +51,7 @@ uv run mb session start
 
 ```powershell
 uv run mb status                 # equity, window, mode, open risk, positions
-uv run mb risk-scale 0.25        # first sessions: a quarter of the normal risk per trade
+uv run mb risk-scale 0.3         # first sessions: the smallest scale that still trades (see below)
 uv run mb auto on                # let the strategies trade
 uv run mb events --limit 30      # what happened
 ```
@@ -74,7 +74,7 @@ The remote is a Telegram bot that runs on the bot's computer and answers only th
 **What it does:**
 
 - **Notifications** from the live and demo bots: entries, closes, stop-outs, mode changes, errors, session loss, delisting announcements.
-- **Your commands:** any allowed `mb` command, typed as `/mb ...`. `/help` lists examples. For example: `/mb session start`, `/mb strategies set delisting-short-4h`, `/mb risk-scale 0.25`, `/mb auto on`, `/mb restart`, `/mb close SOLUSDT`, `/mb transfer 50 to-futures`.
+- **Your commands:** any allowed `mb` command, typed as `/mb ...`. `/help` lists examples. For example: `/mb session start`, `/mb strategies set delisting-short-4h`, `/mb risk-scale 0.3`, `/mb auto on`, `/mb restart`, `/mb close SOLUSDT`, `/mb transfer 50 to-futures`.
   - Only the `mb` program runs, never a shell.
   - Key generation, research, and data downloads stay on the computer.
 - **Claude's proposals** (`mb ask`) arrive with Run and Decline buttons. They run only when you tap Run, and they expire.
@@ -89,7 +89,14 @@ The remote is a Telegram bot that runs on the bot's computer and answers only th
 2. `/mb transfer 100 to-futures`, then confirm. This funds the futures wallet.
 3. `/mb strategies set delisting-short-4h`
 4. `/mb session start`
-5. `/mb risk-scale 0.25`: a quarter of the normal risk while live fills are unproven.
+5. `/mb risk-scale 0.3`: about a third of the normal risk while live fills are unproven.
+
+   **Why not lower.** Binance rejects orders below 5 USDT of notional. At about 120 USDT of equity, a 20% stop, and 3% risk per trade:
+
+   - at scale 0.25 the position would be 4.50 USDT, so every entry is rejected;
+   - at scale 0.3 it is 5.45 USDT, risking 1.10 USDT.
+
+   A rejected strategy entry is reported on the remote (`entry_rejected`).
 6. `/mb auto on`: the strategies may trade from now on. On the very first start they are off. After that the setting is kept across restarts, so a restarted bot trades again by itself.
 
 To stop: `/mb auto off` (no new trades) or `/mb session stop` (closes everything), then confirm.
