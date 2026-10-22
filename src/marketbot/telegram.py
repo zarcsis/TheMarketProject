@@ -24,8 +24,8 @@ from typing import Any
 import httpx
 
 from marketbot import remote
-from marketbot.config import state_dir
-from marketbot.session import bot_running
+from marketbot.config import log_dir, state_dir
+from marketbot.session import bot_running, spawn_detached
 from marketbot.state.store import Store
 
 API = "https://api.telegram.org"
@@ -151,6 +151,16 @@ Runner = Callable[[remote.RemoteCommand], Any]
 
 async def run_mb(command: remote.RemoteCommand) -> str:
     """Run `python -m marketbot <args>` (never a shell) and return its output."""
+    if command.blocking:
+        # A session must not depend on the remote: restarting the remote once stopped the
+        # live session it had started (the session watches its ancestors). Fully detached,
+        # it runs until `/mb session stop`.
+        pid = spawn_detached(
+            [sys.executable, "-m", "marketbot", *command.args],
+            state_dir(command.env) / "session.pid",  # type: ignore[arg-type]
+            log_dir(command.env) / "session.log",  # type: ignore[arg-type]
+        )
+        return f"Started `{command.text()}` (pid {pid}). Check /mb status in a minute."
     process = await asyncio.create_subprocess_exec(
         sys.executable,
         "-m",
@@ -160,8 +170,7 @@ async def run_mb(command: remote.RemoteCommand) -> str:
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
     )
-    if command.blocking:
-        return f"Started `{command.text()}` (pid {process.pid}). Check /mb status in a minute."
+
     try:
         output, _ = await asyncio.wait_for(process.communicate(), COMMAND_TIMEOUT_S)
     except TimeoutError:
