@@ -90,6 +90,13 @@ The busy 7-day short with a 40% stop (with funding) by listing quarter:
 
 **Concentration.** The 10 best trades make 55% of the total profit. Without them the mean is still +2.0% per trade.
 
+**No market-regime filter is needed.** The busy 7-day short is positive whether BTC closed above or below its 50-day average the day before, in both years. With funding:
+
+| BTC the day before | First year | Second year |
+|---|---|---|
+| Above its 50-day average | +2.8% | +10.3% |
+| Below its 50-day average | +1.7% | +7.5% |
+
 **Frequency is falling.** Busy crypto listings became rare in 2026, as Binance listed more TradFi contracts. Expect one to three trades a month, not the 10–20 of 2025.
 
 ## Implications
