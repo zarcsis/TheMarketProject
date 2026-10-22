@@ -48,6 +48,7 @@ class ManagedPosition:
     strategy: str = "manual"
     bucket: str = "btc_beta"
     opened_at: datetime | None = None
+    initial_stop: Decimal | None = None  # the stop at entry; 1R is the distance to it
 
 
 class EntryFailed(Exception):
@@ -129,6 +130,7 @@ class Executor:
             entry_price=fill.avg_price,
             stop=stop.trigger_price,
             stop_algo_id=stop.algo_id,
+            initial_stop=stop.trigger_price,
             target=target_order.trigger_price if target_order else None,
             target_algo_id=target_order.algo_id if target_order else None,
             strategy=intent.strategy,

@@ -12,7 +12,7 @@ Each tick:
 """
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -34,6 +34,7 @@ from marketbot.risk.sizing import (
     total_risk,
 )
 from marketbot.risk.window import (
+    ENTRY_MODES,
     FLAT_MODES,
     Mode,
     WindowState,
@@ -42,6 +43,7 @@ from marketbot.risk.window import (
     update_window,
 )
 from marketbot.state.store import Command, Store, load_dataclass
+from marketbot.strategy.runtime import Action, Close, MoveStop, PositionView, Propose, Strategy
 
 STALE_DATA = timedelta(seconds=60)
 
@@ -73,6 +75,7 @@ class Heartbeat:
 class Controls:
     paused: bool = False
     risk_scale: Decimal = Decimal(1)
+    auto: bool = False  # whether strategies may act; off until `mb auto on`
 
 
 class Engine:
@@ -83,8 +86,10 @@ class Engine:
         config: RiskConfig,
         *,
         heartbeat: Heartbeat | None = None,
+        strategies: Sequence[Strategy] = (),
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
+        self.strategies = list(strategies)
         self.exchange = exchange
         self.store = store
         self.config = config
@@ -151,6 +156,7 @@ class Engine:
                 return True
         await self._reconcile(account)
         await self._run_commands(now)
+        await self._run_strategies(now)
         self._write_status(now)
         if self.stopping:
             return await self.tick()  # a stop command: close everything now, not next tick
@@ -346,6 +352,10 @@ class Engine:
                 controls = replace(self.controls, risk_scale=scale)
                 self.store.put("controls", controls)
                 return "done", asdict(controls)
+            case "auto":
+                controls = replace(self.controls, auto=bool(payload["on"]))
+                self.store.put("controls", controls)
+                return "done", asdict(controls)
             case "flatten":
                 flat = await self.executor.flatten(payload.get("reason", "manual"))
                 if flat:
@@ -406,6 +416,76 @@ class Engine:
         self.store.put_position(symbol, position)
         self.store.put("window", record_trade(window))
         return "done", {"position": asdict(position), "risk": decision.risk}
+
+    # Strategies.
+
+    async def _run_strategies(self, now: datetime) -> None:
+        controls = self.controls
+        if not self.strategies or not controls.auto or controls.paused or self.stopping:
+            return
+        views = {
+            symbol: PositionView(
+                symbol=symbol,
+                side=position.side,
+                entry_price=position.entry_price,
+                stop=position.stop,
+                initial_risk=abs(position.entry_price - (position.initial_stop or position.stop)),
+                opened_at=position.opened_at or now,
+                strategy=position.strategy,
+            )
+            for symbol, position in self.managed().items()
+        }
+        for strategy in self.strategies:
+            try:
+                actions = await strategy.step(now, views)
+            except Exception as exc:  # a strategy failure must not stop risk management
+                self.store.log("strategy_error", strategy=strategy.name, error=repr(exc))
+                continue
+            for action in actions:
+                try:
+                    await self._apply(action)
+                except Exception as exc:
+                    self.store.log("strategy_error", action=action, error=repr(exc))
+
+    async def _apply(self, action: Action) -> None:
+        managed = self.managed().get(action.symbol)
+        match action:
+            case Propose():
+                window = self.window
+                if window is None or window.mode not in ENTRY_MODES:
+                    return
+                status, result = await self._propose(
+                    {
+                        "symbol": action.symbol,
+                        "side": action.side.value,
+                        "stop": action.stop,
+                        "target": action.target,
+                        "strategy": action.strategy,
+                        "why": action.why,
+                    }
+                )
+                self.store.log("strategy_entry", status=status, result=result, why=action.why)
+            case MoveStop() if managed is not None:
+                direction = 1 if managed.side is Side.LONG else -1
+                if (action.stop - managed.stop) * direction <= 0:
+                    return  # stops only tighten
+                account = self.last_account
+                position = account.positions.get(action.symbol) if account else None
+                if position is not None and (position.mark_price - action.stop) * direction <= 0:
+                    # The new stop is already through the market: the trade is stopped out.
+                    await self.executor.close(
+                        managed.symbol, managed.side, managed.qty, reason=action.why
+                    )
+                    self.store.delete_position(managed.symbol)
+                    return
+                info = await self.exchange.symbol_info(action.symbol)
+                moved = await self.executor.move_stop(managed, action.stop, info)
+                self.store.put_position(moved.symbol, moved)
+            case Close() if managed is not None:
+                await self.executor.close(
+                    managed.symbol, managed.side, managed.qty, reason=action.why
+                )
+                self.store.delete_position(managed.symbol)
 
     # Helpers.
 

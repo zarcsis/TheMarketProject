@@ -219,3 +219,30 @@ def research_feasibility(
 
 def _lines(path: Path) -> list[str]:
     return [line.strip() for line in path.read_text().splitlines() if line.strip()]
+
+
+@research_app.command("strategies")
+def research_strategies(
+    start: Annotated[str, typer.Option(help="First day, YYYY-MM-DD.")] = "2025-10-01",
+    split: Annotated[str, typer.Option(help="First out-of-sample day.")] = "2026-04-01",
+    end: Annotated[str, typer.Option(help="Last day, YYYY-MM-DD.")] = "2026-09-30",
+    out: Annotated[Path, typer.Option(help="Report to write.")] = Path(
+        "research/results/02-strategies.md"
+    ),
+    trades_out: Annotated[Path, typer.Option(help="All simulated trades (Parquet).")] = Path(
+        "data/research/02-trades.parquet"
+    ),
+    root: Annotated[Path, typer.Option(help="Storage directory.")] = archive.DEFAULT_ROOT,
+) -> None:
+    """Run research 02 (intraday strategies, in-sample and out-of-sample)."""
+    from marketbot.research import strategies
+
+    period = strategies.StudyPeriod(
+        date.fromisoformat(start), date.fromisoformat(split), date.fromisoformat(end)
+    )
+    trades = strategies.run_trades(root, period, progress=typer.echo)
+    trades_out.parent.mkdir(parents=True, exist_ok=True)
+    trades.write_parquet(trades_out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(strategies.report(trades, period), encoding="utf-8")
+    typer.echo(f"{trades.height} trades; report written to {out}")
