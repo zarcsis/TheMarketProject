@@ -63,6 +63,25 @@ class PositionView:
     strategy: str
 
 
+class Memory:
+    """Keys of handled events that survive a restart (kept in the bot's store when given)."""
+
+    def __init__(self, store: Any | None = None, key: str = "", limit: int = 500) -> None:
+        self._store, self._key, self._limit = store, key, limit
+        saved = store.get(key) if store is not None else None
+        self._items: list[str] = list(saved or [])
+
+    def __contains__(self, item: str) -> bool:
+        return item in self._items
+
+    def add(self, item: str) -> None:
+        if item in self._items:
+            return
+        self._items = [*self._items, item][-self._limit :]
+        if self._store is not None:
+            self._store.put(self._key, self._items)
+
+
 class Strategy(Protocol):
     name: str
 

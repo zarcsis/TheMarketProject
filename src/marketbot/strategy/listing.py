@@ -13,7 +13,7 @@ from decimal import Decimal
 from typing import Any
 
 from marketbot.domain import Side
-from marketbot.strategy.runtime import Action, Close, Klines, PositionView, Propose
+from marketbot.strategy.runtime import Action, Close, Klines, Memory, PositionView, Propose
 
 NAME = "listing-short"
 BUCKET = "listing"
@@ -62,11 +62,13 @@ class ListingShort:
         config: ListingShortConfig = DEFAULT_CONFIG,
         *,
         journal: Callable[..., Any] = lambda *a, **k: None,
+        store: Any | None = None,
     ) -> None:
         self.config = config
         self._klines = klines
         self._journal = journal
-        self._checked: set[str] = set()  # symbols already decided (entered or skipped)
+        # Listings already decided (entered or skipped), kept across restarts.
+        self._checked = Memory(store, f"strategy:{NAME}:checked")
         self._last_bar: datetime | None = None
 
     async def step(self, now: datetime, positions: dict[str, PositionView]) -> list[Action]:
@@ -84,9 +86,10 @@ class ListingShort:
             return actions
         info = await self._klines.exchange_info()
         for listing in recent_listings(info, now.date()):
-            if listing.symbol in self._checked or listing.symbol in positions:
+            key = f"{listing.symbol}@{listing.listed}"
+            if key in self._checked or listing.symbol in positions:
                 continue
-            self._checked.add(listing.symbol)
+            self._checked.add(key)
             daily = await self._klines.get(listing.symbol, "1d", 3)
             day0 = daily.filter(daily["open_time"].dt.date() == listing.listed)
             volume = float(day0["quote_volume"][0]) if day0.height else 0.0

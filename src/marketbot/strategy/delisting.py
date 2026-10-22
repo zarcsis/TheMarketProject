@@ -20,7 +20,7 @@ import polars as pl
 
 from marketbot.data import announcements
 from marketbot.domain import Side
-from marketbot.strategy.runtime import Action, Close, Klines, PositionView, Propose
+from marketbot.strategy.runtime import Action, Close, Klines, Memory, PositionView, Propose
 
 NAME = "delisting-short"
 BUCKET = "delisting"
@@ -67,6 +67,7 @@ class DelistingShort:
         *,
         fetch: Fetch | None = None,
         journal: Callable[..., Any] = lambda *a, **k: None,
+        store: Any | None = None,
     ) -> None:
         self.config = config
         self.name = config.name
@@ -75,7 +76,8 @@ class DelistingShort:
         self._journal = journal
         self._last_poll: datetime | None = None
         self._pending: dict[str, datetime] = {}  # symbol -> announcement time
-        self._done: set[tuple[str, datetime]] = set()
+        # Events already handled (entered or skipped), kept across restarts.
+        self._done = Memory(store, f"strategy:{config.name}:done")
 
     async def step(self, now: datetime, positions: dict[str, PositionView]) -> list[Action]:
         actions: list[Action] = [
@@ -100,7 +102,7 @@ class DelistingShort:
             if age < self.config.delay:
                 continue
             del self._pending[symbol]
-            self._done.add((symbol, released))
+            self._done.add(f"{symbol}@{released.isoformat()}")
             if age > self.config.max_delay or symbol in positions:
                 self._journal("delisting_skipped", symbol=symbol, age_s=int(age.total_seconds()))
                 continue
@@ -132,6 +134,9 @@ class DelistingShort:
         for row in recent.iter_rows(named=True):
             released = row["released"].astimezone(UTC)
             for symbol in self.config.parser(row["title"]):
-                if (symbol, released) not in self._done and symbol not in self._pending:
+                if (
+                    f"{symbol}@{released.isoformat()}" not in self._done
+                    and symbol not in self._pending
+                ):
                     self._pending[symbol] = released
                     self._journal("delisting_announced", symbol=symbol, title=row["title"])

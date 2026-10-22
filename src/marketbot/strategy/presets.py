@@ -52,15 +52,21 @@ DELISTING_PRESETS: dict[str, DelistingShortConfig] = {
 }
 
 
-def build(names: str, klines: Klines, journal: Callable[..., Any]) -> list[Strategy]:
+def build(
+    names: str, klines: Klines, journal: Callable[..., Any], store: Any | None = None
+) -> list[Strategy]:
     strategies: list[Strategy] = []
     for name in (part.strip() for part in names.split(",") if part.strip()):
         if name in PRESETS:
             strategies.append(SignalStrategy(PRESETS[name], klines, journal=journal))
         elif name in LISTING_PRESETS:
-            strategies.append(ListingShort(klines, LISTING_PRESETS[name], journal=journal))
+            strategies.append(
+                ListingShort(klines, LISTING_PRESETS[name], journal=journal, store=store)
+            )
         elif name in DELISTING_PRESETS:
-            strategies.append(DelistingShort(klines, DELISTING_PRESETS[name], journal=journal))
+            strategies.append(
+                DelistingShort(klines, DELISTING_PRESETS[name], journal=journal, store=store)
+            )
         else:
             known = ", ".join([*PRESETS, *LISTING_PRESETS, *DELISTING_PRESETS])
             raise ValueError(f"Unknown strategy preset {name!r}; known: {known}")

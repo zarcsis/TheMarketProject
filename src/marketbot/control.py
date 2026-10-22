@@ -84,7 +84,9 @@ async def _run_bot(env: Env, paths: Paths, store: Store, config: RiskConfig) -> 
         venue = await _venue(env, settings, binance, store)
         # Signals always use the live venue's public klines, also when trading on Demo.
         market = BinanceREST(FUTURES_BASE_URL, "/fapi/v1/time")
-        strategies = presets.build(os.environ.get("MB_STRATEGIES", ""), Klines(market), store.log)
+        strategies = presets.build(
+            os.environ.get("MB_STRATEGIES", ""), Klines(market), store.log, store=store
+        )
         store.log("strategies", names=[s.name for s in strategies])
         keep = os.environ.get("MB_ON_STOP", "flatten") == "keep"
         store.log("on_stop", mode="keep positions" if keep else "flatten")

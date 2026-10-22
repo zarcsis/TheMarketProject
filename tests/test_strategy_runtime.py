@@ -264,3 +264,14 @@ async def test_delisting_short_prefers_liquid_symbols() -> None:
     strategy = DelistingShort(klines, fetch=fetch)
     actions = await strategy.step(released + timedelta(minutes=6), {})
     assert [a.symbol for a in actions] == ["BBBUSDT", "AAAUSDT"]
+
+
+def test_strategy_memory_survives_a_restart(tmp_path: Path) -> None:
+    from marketbot.state.store import Store
+    from marketbot.strategy.runtime import Memory
+
+    store = Store(tmp_path / "bot.db")
+    memory = Memory(store, "strategy:test:done")
+    memory.add("ABCUSDT@2026-10-22T07:00:00+00:00")
+    assert "ABCUSDT@2026-10-22T07:00:00+00:00" in Memory(store, "strategy:test:done")
+    assert "XYZUSDT@x" not in Memory(store, "strategy:test:done")
