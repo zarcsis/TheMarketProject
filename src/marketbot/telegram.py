@@ -25,6 +25,7 @@ import httpx
 
 from marketbot import remote
 from marketbot.config import state_dir
+from marketbot.session import bot_running
 from marketbot.state.store import Store
 
 API = "https://api.telegram.org"
@@ -174,15 +175,48 @@ class Remote:
     journals: dict[str, Path]  # env -> bot.db
     runner: Runner = run_mb
     clock: Callable[[], datetime] = lambda: datetime.now(UTC)
+    states: Callable[[], list["BotState"]] = lambda: []
+    healthcheck_url: str | None = None
     offset: int = 0
     confirmations: dict[str, PendingConfirmation] = field(default_factory=dict)
 
     # Main loop.
 
     async def run(self) -> None:
-        if self.chat_id is not None:
-            await self.api.send(self.chat_id, "Remote started. /help for commands.")
-        await asyncio.gather(self._poll_loop(), self._push_loop())
+        await self.announce_start()
+        await asyncio.gather(self._poll_loop(), self._push_loop(), self._health_loop())
+
+    async def announce_start(self) -> None:
+        """Say what runs; offer to restart a session that should run but does not (a reboot)."""
+        if self.chat_id is None:
+            return
+        lines = ["Remote started. /help for commands."]
+        buttons = []
+        for state in self.states():
+            positions = ", ".join(state.positions) if state.positions else "none"
+            if state.running:
+                lines.append(f"{state.env}: bot running; positions: {positions}")
+            elif state.desired:
+                lines.append(
+                    f"{state.env}: bot NOT running, but its session was on (computer restart or "
+                    f"crash?). Positions on record: {positions}; they keep their exchange stops."
+                )
+                buttons.append([button(f"Start {state.env} session", f"session:{state.env}")])
+            else:
+                lines.append(f"{state.env}: no session")
+        await self.api.send(self.chat_id, "\n".join(lines), buttons or None)
+
+    async def _health_loop(self) -> None:
+        """Ping an external monitor so that a dead computer raises an alert by itself."""
+        if not self.healthcheck_url:
+            return
+        async with httpx.AsyncClient(timeout=10) as client:
+            while True:
+                try:
+                    await client.get(self.healthcheck_url)
+                except httpx.HTTPError as exc:
+                    print(f"{self.clock():%H:%M:%S} health ping failed: {type(exc).__name__}")
+                await asyncio.sleep(60)
 
     async def _poll_loop(self) -> None:
         while True:
@@ -284,6 +318,8 @@ class Remote:
             return
         if action in ("run", "decline"):
             await self._handle_proposal(int(key), action)
+        if action == "session" and key in ("live", "demo"):
+            await self._execute(remote.parse(f"--env {key} session start"), None)
 
     async def _handle_proposal(self, proposal_id: int, action: str) -> None:
         assert self.chat_id is not None
@@ -346,6 +382,31 @@ class Remote:
             self.proposals.put(key, last)
             if lines:
                 await self.api.send(self.chat_id, f"[{env.upper()}]\n" + "\n".join(lines))
+
+
+@dataclass(frozen=True)
+class BotState:
+    env: str
+    running: bool
+    desired: bool  # a session was started and not stopped by the owner
+    positions: list[str]
+
+
+def bot_states(envs: dict[str, Path]) -> list[BotState]:
+    states = []
+    for env, db in envs.items():
+        if not db.exists():
+            continue
+        store = Store(db)
+        states.append(
+            BotState(
+                env=env,
+                running=bot_running(db.parent / "bot.pid") is not None,
+                desired=bool(store.get("session_desired")),
+                positions=sorted(store.positions()),
+            )
+        )
+    return states
 
 
 def button(text: str, data: str) -> dict[str, str]:

@@ -175,6 +175,8 @@ def session_start(ctx: typer.Context) -> None:
         typer.echo(f"The bot exited at start; see {paths.log}.", err=True)
         raise typer.Exit(1)
     typer.echo(f"Session started ({env}); bot pid {pid}, log {paths.log}.")
+    # Remembered so that after a power loss the remote can offer to start the session again.
+    Store(paths.store).put("session_desired", True)
     while True:
         reason = keep_alive(heartbeat, process, echo=typer.echo)
         store = Store(paths.store)
@@ -197,6 +199,7 @@ def session_stop(ctx: typer.Context) -> None:
     if process is None:
         typer.echo("No bot is running.")
         return
+    Store(paths.store).put("session_desired", False)
     result = _send(paths, "stop", {"reason": "session stopped"}, timeout_s=60)
     typer.echo(f"Stop: {result}")
     try:

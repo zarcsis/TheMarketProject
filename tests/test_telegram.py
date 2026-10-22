@@ -157,3 +157,28 @@ async def test_errors_never_contain_the_token() -> None:
         await api.send(OWNER, "hi")
     assert TOKEN not in str(error.value)
     assert "<token>" in str(error.value)
+
+
+async def test_start_offers_to_restart_an_interrupted_session(rig: Rig) -> None:
+    from marketbot.telegram import BotState
+
+    rig.remote.states = lambda: [
+        BotState("live", running=False, desired=True, positions=["DOGEUSDT"]),
+        BotState("demo", running=False, desired=False, positions=[]),
+    ]
+    await rig.remote.announce_start()
+    text = rig.telegram.texts()[-1]
+    assert "live: bot NOT running" in text and "DOGEUSDT" in text
+    assert "demo: no session" in text
+    assert rig.telegram.buttons() == ["session:live"]
+    await rig.tap("session:live")
+    assert rig.ran == ["mb --env live session start"]
+
+
+async def test_start_message_without_interruptions_has_no_buttons(rig: Rig) -> None:
+    from marketbot.telegram import BotState
+
+    rig.remote.states = lambda: [BotState("live", running=True, desired=True, positions=[])]
+    await rig.remote.announce_start()
+    assert "live: bot running" in rig.telegram.texts()[-1]
+    assert "reply_markup" not in rig.telegram.sent[-1]

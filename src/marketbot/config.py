@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     # The Telegram remote (`mb remote`): bot token from @BotFather and the owner's chat id.
     telegram_bot_token: SecretStr | None = None
     telegram_chat_id: int | None = None
+    # Optional external monitor (e.g. a healthchecks.io ping URL) the remote pings every minute.
+    healthcheck_url: str | None = None
 
     spot_base_url: str = SPOT_BASE_URL
     futures_base_url: str = FUTURES_BASE_URL

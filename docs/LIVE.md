@@ -88,7 +88,7 @@ The remote is a Telegram bot that runs on the bot's computer and answers only th
 3. `/mb strategies set delisting-short-4h`
 4. `/mb session start`
 5. `/mb risk-scale 0.25`: a quarter of the normal risk while live fills are unproven.
-6. `/mb auto on`: the strategies may trade from now on. A new bot starts with them off.
+6. `/mb auto on`: the strategies may trade from now on. On the very first start they are off. After that the setting is kept across restarts, so a restarted bot trades again by itself.
 
 To stop: `/mb auto off` (no new trades) or `/mb session stop` (closes everything), then confirm.
 
@@ -99,6 +99,46 @@ The remote was tested on Demo Trading on 2026-10-22:
 - `strategies set` and `restart` from the phone.
 
 **A session started from the remote** lives until `/mb session stop`, or until the remote itself stops.
+
+## Shutdowns, restarts, and power loss
+
+**While the computer is off, the exchange still protects every position.**
+
+- Each one has its exchange-side stop.
+- The open-risk budget at entry limits the total loss if all stops fire.
+
+**What is missing while it is off:**
+
+- time exits, for example the 4-hour close of a delisting short;
+- trailing stops and profit locking;
+- notifications.
+
+You can still close positions by hand in the Binance app; the bot notices that when it is back.
+
+**Before a planned shutdown or restart:**
+
+- `/mb session stop`, then confirm, to close everything;
+- or `/mb auto off` to stop new entries and keep the open positions under their stops.
+
+**After the computer is back:**
+
+1. The remote starts by itself at logon, if you set up autostart (below).
+2. The remote reports which bots run. If a session was on but its bot is not running (a restart or a power loss), the message has a **Start session** button.
+3. The restarted bot reconciles with the exchange, adopts its positions, and immediately does any time exit that came due meanwhile.
+
+**Autostart.** Press Win+R, type `shell:startup`, and put a shortcut to `scripts/start-remote.cmd` there. This is the owner's change to Windows.
+
+**Knowing that the computer is down.**
+
+1. Create a free check on healthchecks.io with a period of 1 minute and a grace of 5 minutes, and add Telegram as its integration.
+2. Put the check's ping URL into `.env` as `HEALTHCHECK_URL`, then restart the remote.
+
+The remote pings it every minute; when the pings stop, healthchecks.io alerts you.
+
+**Windows settings** (the owner's):
+
+- turn off sleep;
+- set active hours so that updates do not restart the computer at night. Announcements arrive from 02:00 to 12:00 UTC.
 
 ## Keeping multi-day positions between sessions (optional)
 
