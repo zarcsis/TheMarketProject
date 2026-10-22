@@ -298,3 +298,33 @@ def research_delistings(
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text, encoding="utf-8")
     typer.echo(f"{frame.height} events; report written to {out}")
+
+
+@research_app.command("spot-listings")
+def research_spot_listings(
+    since: Annotated[str, typer.Option(help="First announcement day.")] = "2024-10-01",
+    out: Annotated[Path, typer.Option(help="Report to write.")] = Path(
+        "research/results/05-spot-listings.md"
+    ),
+    root: Annotated[Path, typer.Option(help="Storage directory.")] = archive.DEFAULT_ROOT,
+) -> None:
+    """Run research 05 (long perpetuals after Binance spot listing announcements)."""
+    from marketbot.data.announcements import spot_listed_perpetuals
+    from marketbot.research import delistings
+
+    start = datetime.fromisoformat(since).replace(tzinfo=UTC)
+    frame, text = delistings.run(
+        root,
+        Path("data/announcements/listings.parquet"),
+        start,
+        parser=spot_listed_perpetuals,
+        direction=1,
+        heading="# Research 05 results: spot listing announcements",
+        command="uv run mb research spot-listings",
+        analysis="../05-spot-listings.md",
+        kind="spot listing",
+    )
+    frame.write_parquet(Path("data/research/05-spot-listing-events.parquet"))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text, encoding="utf-8")
+    typer.echo(f"{frame.height} events; report written to {out}")

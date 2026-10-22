@@ -62,6 +62,17 @@ def delisted_perpetuals(title: str) -> list[str]:
     return []
 
 
+_SPOT_LIST = re.compile(r"^Binance Will List ", re.IGNORECASE)
+_TICKER = re.compile(r"\(([A-Z0-9]{2,20})\)")
+
+
+def spot_listed_perpetuals(title: str) -> list[str]:
+    """USDT perpetuals of tokens in a spot listing announcement ("Binance Will List X (X)")."""
+    if not _SPOT_LIST.match(title):
+        return []
+    return sorted({f"{ticker}USDT" for ticker in _TICKER.findall(title)})
+
+
 def save(frame: pl.DataFrame, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     frame.write_parquet(path)
