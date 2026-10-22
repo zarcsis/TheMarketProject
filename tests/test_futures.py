@@ -208,3 +208,34 @@ async def test_reduce_only_stop_request() -> None:
     assert placed["reduceOnly"] == ["true"]
     assert "closePosition" not in placed
     assert stop.reduce_only and stop.qty == D("1.59") and not stop.close_position
+
+
+async def test_symbol_info_reloads_for_new_listings() -> None:
+    listed: list[dict] = [SOL_INFO]
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        if request.url.path == "/fapi/v1/exchangeInfo":
+            return httpx.Response(200, json={"symbols": list(listed)})
+        symbol = parse_qs(request.url.query.decode())["symbol"][0]
+        return httpx.Response(
+            200,
+            json=[{"symbol": symbol, "brackets": [{"notionalFloor": 0, "maintMarginRatio": 0.01}]}],
+        )
+
+    rest = BinanceREST(
+        "https://fapi.example",
+        "/fapi/v1/time",
+        api_key="key",
+        signer=FakeSigner(),
+        transport=httpx.MockTransport(handler),
+    )
+    venue = BinanceFutures(rest)
+    assert (await venue.symbol_info("SOLUSDT")).symbol == "SOLUSDT"
+    listed.append({**SOL_INFO, "symbol": "NEWUSDT"})
+    assert (await venue.symbol_info("NEWUSDT")).symbol == "NEWUSDT"
+    with pytest.raises(ValueError, match="not a perpetual"):
+        await venue.symbol_info("NONEUSDT")
+    await rest.close()
+    assert calls.count("/fapi/v1/exchangeInfo") == 3

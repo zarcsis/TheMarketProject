@@ -237,13 +237,16 @@ class BinanceFutures:
         )
 
     async def symbol_info(self, symbol: str) -> SymbolInfo:
-        if not self._symbols:
+        if symbol not in self._symbols:
+            # (Re)load: a symbol listed while the bot runs is not in an older snapshot.
             info = await self._futures.public("GET", "/fapi/v1/exchangeInfo")
             self._symbols = {
                 row["symbol"]: parse_symbol_info(row)
                 for row in info["symbols"]
                 if row.get("contractType") == "PERPETUAL"
             }
+        if symbol not in self._symbols:
+            raise ValueError(f"{symbol} is not a perpetual on this venue")
         base = self._symbols[symbol]
         brackets = await self._futures.signed("GET", "/fapi/v1/leverageBracket", {"symbol": symbol})
         rows = brackets if isinstance(brackets, list) else [brackets]
