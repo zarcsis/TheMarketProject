@@ -45,6 +45,74 @@ SESSION_ACTIONS = frozenset({"start", "stop"})
 # These need a second tap: they close positions or move money.
 DANGEROUS = frozenset({"flatten", "transfer", "session stop", "close"})
 
+# Short commands for Telegram's command menu (names: lowercase letters only), so that typing
+# "/" offers them with a description. Each runs the given `mb` command on the live bot, or on
+# Demo Trading with "demo" after it: "/status demo".
+SHORTCUTS = {
+    "status": ("status", "Equity, window, risk, positions"),
+    "summary": ("summary", "Daily summary of both bots"),
+    "forward": ("forward", "Out-of-time check per strategy"),
+    "report": ("report", "Trades and PnL, last 24 hours"),
+    "events": ("events --limit 15", "Latest journal events"),
+    "ps": ("ps", "What runs on the computer"),
+    "market": ("market", "Market brief from public data"),
+    "check": ("check", "API key and account checks"),
+    "strategies": ("strategies show", "Configured and available strategies"),
+    "pause": ("pause", "Stop opening new positions"),
+    "resume": ("resume", "Allow new positions again"),
+    "help": ("", "All commands; /help <command> for details"),
+}
+
+_HELP_FILE = Path(__file__).with_name("remote_help.txt")
+
+
+def _help_sections() -> dict[str, str]:
+    """`remote_help.txt`: sections headed "## name"; "overview" is the /help text."""
+    sections: dict[str, list[str]] = {}
+    current = None
+    for line in _HELP_FILE.read_text(encoding="utf-8").splitlines():
+        if line.startswith("## "):
+            current = line[3:].strip()
+            sections[current] = []
+        elif current is not None:
+            sections[current].append(line)
+    return {name: "\n".join(lines).strip() for name, lines in sections.items()}
+
+
+_SECTIONS = _help_sections()
+HELP = _SECTIONS.pop("overview")
+DETAILS = _SECTIONS
+
+
+def help_text(topic: str = "") -> str:
+    """The overview, or one command's details ("/help propose", "/help risk-scale")."""
+    topic = topic.strip().lstrip("/").removeprefix("mb ").strip()
+    if not topic:
+        return HELP
+    name = topic.split()[0]
+    if name in DETAILS:
+        return DETAILS[name]
+    return f"No help for '{name}'. Commands: {', '.join(sorted(DETAILS))}."
+
+
+def shortcut(text: str) -> str | None:
+    """`mb` command text for a short command ("/status demo" -> "mb --env demo status"),
+    or None if the text is not one. "/help" is handled apart."""
+    words = text.strip().split()
+    if not words or not words[0].startswith("/"):
+        return None
+    name = words[0][1:].split("@")[0].lower()  # "/status@SomeBot" in group chats
+    if name not in SHORTCUTS or name == "help":
+        return None
+    rest = words[1:]
+    env = ""
+    if rest[:1] == ["demo"]:
+        env, rest = "--env demo ", rest[1:]
+    command = SHORTCUTS[name][0]
+    if rest and command.startswith("events "):
+        command = "events"  # explicit options replace the default limit
+    return f"mb {env}{command} {' '.join(rest)}".strip()
+
 
 class RemoteCommandError(ValueError):
     pass

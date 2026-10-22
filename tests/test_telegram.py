@@ -257,3 +257,25 @@ async def test_monday_summary_adds_the_out_of_time_check(rig: Rig) -> None:
     rig.remote.clock = lambda: monday
     await rig.remote.maybe_send_summary()
     assert rig.ran == ["mb summary", "mb forward"]
+
+
+async def test_short_commands_run_like_mb_commands(rig: Rig) -> None:
+    await rig.message("/status demo")
+    await rig.message("/report --hours 48")
+    await rig.message("/strategies@SomeBot")
+    assert rig.ran == ["mb --env demo status", "mb report --hours 48", "mb strategies show"]
+
+
+async def test_help_explains_every_command(rig: Rig) -> None:
+    await rig.message("/help")
+    assert "/mb propose SYMBOL" in rig.telegram.texts()[-1]
+    await rig.message("/help risk-scale")
+    assert "5 USDT minimum" in rig.telegram.texts()[-1]
+    await rig.message("/nonsense")
+    assert rig.telegram.texts()[-1].startswith("Unknown command")
+    assert rig.ran == []
+
+
+async def test_command_menu_is_published(rig: Rig) -> None:
+    await rig.remote.publish_commands()
+    assert rig.telegram.calls[-1] == "setMyCommands"

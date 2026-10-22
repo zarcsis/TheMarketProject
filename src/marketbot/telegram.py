@@ -62,26 +62,6 @@ NOTIFY = {
     "entry_rejected",
 }
 
-HELP = """TheMarketProject remote.
-
-Type any allowed mb command, for example:
-/mb status
-/mb --env demo status
-/mb report --hours 24
-/mb pause    /mb resume
-/mb risk-scale 0.5
-/mb auto on
-/mb strategies set delisting-short-4h
-/mb restart
-/mb close SOLUSDT
-/mb flatten
-/mb session start    /mb session stop
-/mb transfer 50 to-futures
-
-Proposals from Claude arrive with Run and Decline buttons.
-Closing positions, stopping, and transfers ask for a second tap.
-Free text is not read here: talk to Claude in the Claude app."""
-
 
 class TelegramError(Exception):
     pass
@@ -214,8 +194,25 @@ class Remote:
     # Main loop.
 
     async def run(self) -> None:
+        await self.publish_commands()
         await self.announce_start()
         await asyncio.gather(self._poll_loop(), self._push_loop(), self._health_loop())
+
+    async def publish_commands(self) -> None:
+        """Telegram's command menu: typing "/" offers the short commands with descriptions."""
+        commands = [
+            {"command": name, "description": description}
+            for name, (_, description) in remote.SHORTCUTS.items()
+            if name != "help"
+        ]
+        commands += [
+            {"command": "mb", "description": "Any mb command, e.g. /mb risk-scale 0.3"},
+            {"command": "help", "description": remote.SHORTCUTS["help"][1]},
+        ]
+        try:
+            await self.api.call("setMyCommands", commands=commands)
+        except TelegramError as exc:  # the menu is a convenience
+            print(f"{self.clock():%H:%M:%S} telegram: {exc}", flush=True)
 
     async def announce_start(self) -> None:
         """Say what runs; offer to restart a session that should run but does not (a reboot)."""
@@ -289,12 +286,18 @@ class Remote:
             return
         if chat != self.chat_id:
             return  # strangers get no answer at all
-        if text in ("/start", "/help"):
-            await self.api.send(chat, HELP)
-        elif text.startswith("/mb"):
+        first, _, rest = text.partition(" ")
+        if first.split("@")[0] in ("/start", "/help"):
+            await self.api.send(chat, remote.help_text(rest))
+        elif first.split("@")[0] == "/mb":
             await self._handle_command(text)
+        elif (command := remote.shortcut(text)) is not None:
+            await self._handle_command(command)
         else:
-            await self.api.send(chat, "Only /mb commands here. Talk to Claude in the Claude app.")
+            await self.api.send(
+                chat,
+                "Unknown command: /help lists them. Free text goes to Claude in the Claude app.",
+            )
 
     async def _handle_command(self, text: str, proposal_id: int | None = None) -> None:
         assert self.chat_id is not None

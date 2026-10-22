@@ -75,7 +75,10 @@ The remote is a Telegram bot that runs on the bot's computer and answers only th
 **What it does:**
 
 - **Notifications** from the live and demo bots: entries, closes, stop-outs, mode changes, errors, session loss, delisting announcements.
-- **Your commands:** any allowed `mb` command, typed as `/mb ...`. `/help` lists examples. For example: `/mb session start`, `/mb strategies set delisting-short-4h`, `/mb risk-scale 0.3`, `/mb auto on`, `/mb restart`, `/mb close SOLUSDT`, `/mb transfer 50 to-futures`.
+- **Your commands:** any allowed `mb` command, typed as `/mb ...`, for example `/mb risk-scale 0.3` or `/mb close SOLUSDT`.
+  - `/help` lists every command by group; `/help <command>` explains one (`/help propose`).
+  - Typing `/` opens Telegram's command menu with short commands: `/status`, `/summary`, `/forward`, `/report`, `/events`, `/ps`, `/market`, `/check`, `/strategies`, `/pause`, `/resume`. Add `demo` for Demo Trading: `/status demo`.
+  - Commands that close positions or move money exist only as `/mb ...`, and ask for a second tap.
   - Only the `mb` program runs, never a shell.
   - Key generation, research, and data downloads stay on the computer.
 - **Claude's proposals** (`mb ask`) arrive with Run and Decline buttons. They run only when you tap Run, and they expire.

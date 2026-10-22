@@ -63,3 +63,24 @@ def test_proposals_expire(tmp_path: Path) -> None:
     assert remote.expired(command.payload, datetime.now(UTC) + timedelta(minutes=6))
     with pytest.raises(RemoteCommandError):
         remote.propose("keygen", "no", timedelta(minutes=5), path=db)
+
+
+def test_every_allowed_command_is_documented() -> None:
+    import re
+
+    assert set(remote.ALLOWED) <= set(remote.DETAILS)
+    for name, (command, description) in remote.SHORTCUTS.items():
+        assert re.fullmatch(r"[a-z0-9_]{1,32}", name)
+        assert 3 <= len(description) <= 256
+        if command:
+            parse(command)  # every shortcut is an allowed command
+    assert len(remote.HELP) < 4000  # one Telegram message
+
+
+def test_shortcuts() -> None:
+    assert remote.shortcut("/status") == "mb status"
+    assert remote.shortcut("/status demo") == "mb --env demo status"
+    assert remote.shortcut("/events demo --limit 5") == "mb --env demo events --limit 5"
+    assert remote.shortcut("/help") is None
+    assert remote.shortcut("/flatten") is None  # dangerous commands only through /mb
+    assert remote.shortcut("hello") is None
