@@ -99,7 +99,12 @@ The remote was tested on Demo Trading on 2026-10-22:
 - a second confirmation for `close`;
 - `strategies set` and `restart` from the phone.
 
-**A session started from the remote** lives until `/mb session stop`, or until the remote itself stops.
+**A session started from the remote** lives until `/mb session stop`. It is detached from the remote, so restarting the remote does not end it.
+
+**What runs where.** Sessions, bots, and the remote run in the background without console windows. `mb ps` (or `/mb ps`) lists them with their process ids and start times. A process started in a terminal titles its window by its role, such as `mb live session`; processes started before 2026-10-22 may still show untitled `python` windows until their next restart. Do not close these windows:
+
+- closing a bot's window stops the bot at once; its positions stay protected by their exchange-side stops, and the session ends;
+- closing a session's window stops the heartbeat; about two minutes later the bot acts on its on-stop mode (by default it closes everything) and exits.
 
 ## Shutdowns, restarts, and power loss
 
