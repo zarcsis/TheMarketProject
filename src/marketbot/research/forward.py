@@ -62,7 +62,7 @@ RULES = {
         float(MONITORING_CONFIG.stop),
         MONITORING_CONFIG.hold,
         MONITORING_CONFIG.delay,
-        "+3.6% to +6.0% (research 07)",
+        "+3.5% to +6.8% (research 07)",
     ),
     "airdrop-short-7d": Rule(
         "airdrop-short-7d",

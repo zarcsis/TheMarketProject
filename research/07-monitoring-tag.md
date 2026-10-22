@@ -10,7 +10,9 @@ Binance adds a "Monitoring Tag" to tokens at risk of delisting: low liquidity, w
 
 **Announcements.** "Binance Will Extend the Monitoring Tag to Include A, B & C on …" titles in Binance's news catalog (49). There are 27 since 2022 and 19 since 2024-10.
 
-**Events.** 90 perpetuals with 5-minute klines around the announcement.
+**Events.** 79 perpetuals with 5-minute klines around the announcement, from 18 announcements.
+
+**Corrected on 2026-10-22.** The title parser had also counted tokens that lose a tag in the same notice. One example: "... to Include WAN, Remove the Monitoring Tag for GPS & MBL, and Remove the Seed Tag for BERA, BIO, ZK & ZRO". That added 11 wrong events. The figures below are after the fix; the result held, slightly stronger.
 
 **Trade.** As in research 04:
 
@@ -20,18 +22,18 @@ Binance adds a "Monitoring Tag" to tokens at risk of delisting: low liquidity, w
 
 ## Findings
 
-**The pattern resembles delistings, but is milder.** The price falls about 8% at the announcement, before a bot can enter, and then keeps drifting down.
+**The pattern resembles delistings, but is milder.** The price falls about 9% in the 24 hours to the entry, mostly at the announcement, before a bot can enter. Then it keeps drifting down.
 
 Short with a 20% stop, mean per trade:
 
-| Hold | 2024-10 to 2025-09 (33 events, 7 announcements) | 2025-10 to 2026-09 (57 events, 12 announcements) | t (19 announcements) |
+| Hold | 2024-10 to 2025-09 (26 events, 7 announcements) | 2025-10 to 2026-09 (53 events, 11 announcements) | t (18 announcements) |
 |---|---|---|---|
-| 4 hours | +4.3% | +2.2% | 1.69 |
-| 1 day | +6.0% | +3.6% | 2.24 |
-| 3 days | +5.5% | +2.8% | 1.27 |
-| 7 days | +11.1% | +3.9% | 1.40 |
+| 4 hours | +5.2% | +2.3% | 1.69 |
+| 1 day | +6.8% | +3.5% | 1.95 |
+| 3 days | +6.7% | +1.2% | 1.05 |
+| 7 days | +11.7% | +2.8% | 1.16 |
 
-**The 1-day hold is the most consistent.** It is positive in both years, and 14 of 19 announcements are positive on average.
+**The 1-day hold is the most consistent.** It is positive in both years, and 13 of 18 announcements are positive on average.
 
 **Out-of-time check, October 2026.** One announcement, BICO and CVC on 10-09 07:00 UTC, came after the data ends. On live 5-minute klines, the 1-day short with a 20% stop made −0.5% and −6.1%. Two events prove nothing either way, but they do not confirm the effect. Treat this strategy as weaker than the delisting short.
 
@@ -43,5 +45,5 @@ Short with a 20% stop, mean per trade:
 
 ## Limitations
 
-- **Sample size.** Only 19 announcements, with correlated events within each.
+- **Sample size.** Only 18 announcements, with correlated events within each.
 - **A fixed delay.** Entries are 5 minutes after the release time, as in research 04; faster entries were not tested for this event type.

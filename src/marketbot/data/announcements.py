@@ -75,6 +75,7 @@ def spot_listed_perpetuals(title: str) -> list[str]:
 
 NEWS = 49
 _MONITORING = re.compile(r"Monitoring Tag to Include (.+?) on \d{4}-\d{2}-\d{2}", re.IGNORECASE)
+_REMOVAL = re.compile(r",?\s*(?:and\s+)?Remove\b", re.IGNORECASE)
 
 
 def monitoring_tagged_perpetuals(title: str) -> list[str]:
@@ -82,7 +83,10 @@ def monitoring_tagged_perpetuals(title: str) -> list[str]:
     match = _MONITORING.search(title)
     if not match:
         return []
-    tokens = re.split(r",\s*|\s*&\s*|\s+and\s+", match.group(1))
+    # "... to Include A & B, Remove the Monitoring Tag for C, and Remove the Seed Tag for D":
+    # only A and B are tagged; C and D lose a tag.
+    included = _REMOVAL.split(match.group(1), maxsplit=1)[0]
+    tokens = re.split(r",\s*|\s*&\s*|\s+and\s+", included)
     return sorted({f"{token.strip()}USDT" for token in tokens if token.strip().isalnum()})
 
 

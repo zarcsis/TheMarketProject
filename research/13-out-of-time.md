@@ -25,7 +25,7 @@ This is the cheapest out-of-sample evidence there is: it needs no positions. It 
 | Strategy | Closed trades | Mean with funding | Research estimate |
 |---|---|---|---|
 | `delisting-short-4h` | 3 | +11.7% (3 wins) | about +5% |
-| `monitoring-short-1d` | 2 | −3.3% (0 wins) | +3.6% to +6.0% |
+| `monitoring-short-1d` | 2 | −3.3% (0 wins) | +3.5% to +6.8% |
 | `listing-short-busy-7d` | 1 | +34.3% | +2% to +8% |
 | `airdrop-short-7d` | 0 | — | about +10% |
 | `exchange-delisting-short-7d` | 1 (and 1 open) | +17.5% | about +4.4% |

@@ -34,6 +34,15 @@ def test_parse_monitoring_tag_titles() -> None:
     assert monitoring_tagged_perpetuals(
         "Binance Will Extend the Monitoring Tag to Include BICO & CVC on 2026-10-09"
     ) == ["BICOUSDT", "CVCUSDT"]
+    # Tokens that lose a tag in the same notice are not tagged.
+    assert monitoring_tagged_perpetuals(
+        "Binance Will Extend the Monitoring Tag to Include WAN, Remove the Monitoring Tag for "
+        "GPS & MBL, and Remove the Seed Tag for BERA, BIO, ZK & ZRO on 2025-10-09"
+    ) == ["WANUSDT"]
+    assert monitoring_tagged_perpetuals(
+        "Binance Will Extend the Monitoring Tag to Include BLZ, CLV, KEY, PROS & VITE and "
+        "Remove the Seed Tag for PENDLE & SEI on 2024-10-03"
+    ) == ["BLZUSDT", "CLVUSDT", "KEYUSDT", "PROSUSDT", "VITEUSDT"]
 
 
 def test_parse_airdrop_titles() -> None:

@@ -33,17 +33,19 @@ At 3% risk per trade, with at most 3 positions open:
 
 | Strategies | Equity after 703 days (median) | 5th to 95th percentile | Annualized | Max realized drawdown |
 |---|---|---|---|---|
-| All three | ×3.73 | ×3.12 to ×4.64 | +98% | 14% |
-| Delisting + Monitoring | ×2.08 | ×1.82 to ×2.34 | +46% | 8% |
+| All three | ×3.83 | ×3.28 to ×4.77 | +101% | 14% |
+| Delisting + Monitoring | ×2.11 | ×1.88 to ×2.32 | +47% | 7% |
 | Delisting only | ×1.77 | ×1.62 to ×1.94 | +34% | 6% |
-| Monitoring only | ×1.20 | ×1.08 to ×1.32 | +10% | 4% |
+| Monitoring only | ×1.22 | ×1.13 to ×1.29 | +11% | 4% |
 | Listing only | ×2.10 | ×1.81 to ×2.55 | +47% | 14% |
 
-At 1.5% risk per trade, all three together reach ×1.97, which is +42% a year with a 7% drawdown.
+At 1.5% risk per trade, all three together reach ×1.99, which is +43% a year with a 7% drawdown.
+
+The figures were updated on 2026-10-22, after a parser fix removed 11 wrong Monitoring Tag events (see research 07).
 
 **With the airdrop short of [research 09](09-airdrops.md)** (32 more events; added on 2026-10-22), at 3% risk with at most 3 positions open:
 
-- the four strategies reach ×4.11 (5th to 95th percentile ×3.42 to ×5.19), about +108% a year, with a 15% drawdown;
+- the four strategies reach ×4.22 (5th to 95th percentile ×3.32 to ×5.27), about +111% a year, with a 15% drawdown;
 - the airdrop short alone reaches ×1.29.
 
 It runs on Demo Trading only until forward events confirm it.
@@ -54,10 +56,10 @@ It runs on Demo Trading only until forward events confirm it.
 
 - **Upper bound.** These are in-sample numbers. The strategies were chosen after looking at the same two years, and seven questions were asked of the data. Only the delisting short has an out-of-time check: four events in October 2026, averaging +8.3% per trade.
 - **The drawdowns are too low.** They are realized only, and they assume the simulated fills. Live fills in thin tokens will be worse.
-- **Even the upper bound is far from the goal.** ×3.7 in two years is about +0.19% a day; the project's goal is +10% a day.
+- **Even the upper bound is far from the goal.** ×3.8 in two years is about +0.19% a day; the project's goal is +10% a day.
 - **The gain is lumpy.** Most days have no event at all.
 
 ## Implications
 
 - **Recommended live set:** the delisting short first, as the most robust, plus the Monitoring Tag short and the busy-listing short if positions may be kept between sessions (`MB_ON_STOP=keep`).
-- **Start at a lower risk scale** (for example 0.25 to 0.5) until live fills confirm the simulated ones.
+- **Start at a lower risk scale** until live fills confirm the simulated ones. At about 120 USDT of equity the floor is about 0.3 for a 20% stop: below it, positions fall under Binance's 5 USDT minimum (see docs/LIVE.md).
