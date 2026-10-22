@@ -79,4 +79,4 @@ Their returns stand.
 - **No new strategy.** The Upbit KRW listing fade is real in price, but other traders crowd the short and funding charges for it. After funding it is about +4.5% per trade with t below 2, which does not meet the promotion criteria.
 - **Never go long after an Upbit listing.**
 - **Count funding in every multi-day short of a pumped token.** It can cost more than the move. Research 03 and 09 already include it.
-- **For later: an exit when funding turns extreme.** It could keep part of the fade, but it is a new rule and would need its own test.
+- **An exit when funding turns extreme does not help.** It was tested afterwards, as an exploration on the same events: close the 7-day short at the first funding settlement below −0.03% to −0.2% (per 8 hours). That leaves +0.1% to +0.7% per trade, against +4.3% to +4.6% when holding. Extreme funding comes during short squeezes, so the exit takes the loss and misses the later fade.
