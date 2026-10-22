@@ -231,3 +231,26 @@ def test_forward_simulation_stops_holds_and_marks_open_trades() -> None:
     assert stopped["return"] == pytest.approx(-0.20 * 1.002 - 0.002 - 0.0005 * (1 + 1.2 * 1.002))
     long_rule = Rule("test", 0.20, timedelta(hours=2), timedelta(0), "")
     assert simulate(bars([100.0] * 12), funding, start, long_rule)["status"] == "open"
+
+
+def test_distress_short_ends_with_the_perpetual() -> None:
+    from marketbot.research.distress import removed_perpetuals, short_trade
+
+    assert removed_perpetuals(
+        "Binance Will Extend the Monitoring Tag to Include WAN, Remove the Monitoring Tag for "
+        "GPS & MBL, and Remove the Seed Tag for BERA on 2025-10-09"
+    ) == ["GPSUSDT", "MBLUSDT"]
+    start = date(2026, 1, 1)
+    bars = pl.DataFrame(
+        {
+            "day": [start + timedelta(days=i) for i in range(4)],
+            "open": [100.0, 90.0, 80.0, 70.0],
+            "high": [100.0, 90.0, 80.0, 70.0],
+            "close": [90.0, 80.0, 70.0, 60.0],
+            "funding": [0.0] * 4,
+        }
+    )
+    held = short_trade(bars, start, 2, None)  # exit at the open of day 2
+    assert held["ret"] == pytest.approx(0.20 - 0.0005 * 1.8)
+    delisted = short_trade(bars, start, 10, None)  # bars end: exit at the last close
+    assert delisted["ended_early"] and delisted["ret"] == pytest.approx(0.40 - 0.0005 * 1.6)

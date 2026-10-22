@@ -626,6 +626,33 @@ def research_exchanges(
     typer.echo(f"{frame.height} events; report written to {out}")
 
 
+@research_app.command("distress")
+def research_distress(
+    since: Annotated[str, typer.Option(help="First tag day.")] = "2024-10-01",
+    split: Annotated[str, typer.Option(help="First day of the second year.")] = "2025-10-01",
+    out: Annotated[Path, typer.Option(help="Report to write.")] = Path(
+        "research/results/15-distress.md"
+    ),
+    root: Annotated[Path, typer.Option(help="Storage directory.")] = archive.DEFAULT_ROOT,
+) -> None:
+    """Run research 15 (perpetuals under the Monitoring Tag, over weeks)."""
+    import polars as pl
+
+    from marketbot.research import distress
+
+    trades, text = distress.run(
+        root,
+        pl.read_parquet(Path("data/announcements/news.parquet")),
+        pl.read_parquet(Path("data/announcements/delistings.parquet")),
+        datetime.fromisoformat(since).replace(tzinfo=UTC),
+        date.fromisoformat(split),
+    )
+    trades.write_parquet(Path("data/research/15-distress-trades.parquet"))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text, encoding="utf-8")
+    typer.echo(f"{trades.height} trades; report written to {out}")
+
+
 @research_app.command("unlocks")
 def research_unlocks(
     start: Annotated[str, typer.Option(help="First unlock day.")] = "2024-10-15",

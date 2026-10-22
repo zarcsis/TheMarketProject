@@ -92,9 +92,7 @@ def altcoin_index(daily: pl.DataFrame) -> dict[date, float]:
     return dict(returns.iter_rows())
 
 
-def short_trade(
-    bars: pl.DataFrame, start: date, hold: int, stop: float | None
-) -> dict | None:
+def short_trade(bars: pl.DataFrame, start: date, hold: int, stop: float | None) -> dict | None:
     """A short from the open of `start`, for `hold` days or until the bars end."""
     rows = bars.filter(pl.col("day") >= start).head(hold + 1)
     if rows.height < 2 or rows["day"][0] != start:
