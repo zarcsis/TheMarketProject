@@ -45,23 +45,39 @@ SESSION_ACTIONS = frozenset({"start", "stop"})
 # These need a second tap: they close positions or move money.
 DANGEROUS = frozenset({"flatten", "transfer", "session stop", "close"})
 
-# Short commands for Telegram's command menu (names: lowercase letters only), so that typing
-# "/" offers them with a description. Each runs the given `mb` command on the live bot, or on
-# Demo Trading with "demo" after it: "/status demo".
-SHORTCUTS = {
-    "status": ("status", "Equity, window, risk, positions"),
-    "summary": ("summary", "Daily summary of both bots"),
-    "forward": ("forward", "Out-of-time check per strategy"),
-    "report": ("report", "Trades and PnL, last 24 hours"),
-    "events": ("events --limit 15", "Latest journal events"),
-    "ps": ("ps", "What runs on the computer"),
-    "market": ("market", "Market brief from public data"),
-    "check": ("check", "API key and account checks"),
-    "strategies": ("strategies show", "Configured and available strategies"),
-    "pause": ("pause", "Stop opening new positions"),
-    "resume": ("resume", "Allow new positions again"),
-    "help": ("", "All commands; /help <command> for details"),
+# Telegram's command menu: every allowed command, so that typing "/" offers them all with a
+# description. Telegram allows only [a-z0-9_] in command names: "risk-scale" is /risk_scale.
+# A command acts on the live bot, or on Demo Trading with "demo" as its first argument.
+MENU = {
+    "status": "Equity, window, risk, positions",
+    "summary": "Daily summary of both bots",
+    "forward": "Out-of-time check per strategy",
+    "report": "Trades and PnL, last 24 hours",
+    "events": "Latest journal events",
+    "ps": "What runs on the computer",
+    "market": "Market brief from public data",
+    "check": "API key and account checks",
+    "strategies": "Show strategies; set a,b to choose",
+    "pause": "Stop opening new positions",
+    "resume": "Allow new positions again",
+    "risk-scale": "Risk per trade multiplier, 0 to 1",
+    "auto": "on|off: let strategies trade",
+    "on-stop": "flatten|keep positions at session end",
+    "restart": "Reload the bot, keep positions",
+    "propose": "SYMBOL long|short --stop P: manual trade",
+    "close": "SYMBOL: close one position (2 taps)",
+    "flatten": "Close everything (2 taps)",
+    "transfer": "AMOUNT to-futures|to-spot (2 taps)",
+    "session": "start|stop the trading session",
+    "help": "All commands; /help <command> for details",
 }
+# What a command runs without arguments, where that differs from the bare command.
+DEFAULTS = {"strategies": "strategies show", "events": "events --limit 15"}
+
+
+def telegram_name(command: str) -> str:
+    return command.replace("-", "_")
+
 
 _HELP_FILE = Path(__file__).with_name("remote_help.txt")
 
@@ -89,29 +105,30 @@ def help_text(topic: str = "") -> str:
     topic = topic.strip().lstrip("/").removeprefix("mb ").strip()
     if not topic:
         return HELP
-    name = topic.split()[0]
+    name = topic.split()[0].replace("_", "-")
     if name in DETAILS:
         return DETAILS[name]
     return f"No help for '{name}'. Commands: {', '.join(sorted(DETAILS))}."
 
 
-def shortcut(text: str) -> str | None:
-    """`mb` command text for a short command ("/status demo" -> "mb --env demo status"),
-    or None if the text is not one. "/help" is handled apart."""
+def command_text(text: str) -> str | None:
+    """The `mb` command for a Telegram message ("/status demo" -> "mb --env demo status",
+    "/risk_scale 0.3" -> "mb risk-scale 0.3"), or None if it names no allowed command.
+    "/mb ..." is accepted too, as Claude's proposals use it; "/help" is handled apart."""
     words = text.strip().split()
     if not words or not words[0].startswith("/"):
         return None
-    name = words[0][1:].split("@")[0].lower()  # "/status@SomeBot" in group chats
-    if name not in SHORTCUTS or name == "help":
-        return None
+    name = words[0][1:].split("@")[0].lower().replace("_", "-")  # "/status@SomeBot" in groups
     rest = words[1:]
+    if name == "mb":
+        return "mb " + " ".join(rest)
+    if name not in ALLOWED:
+        return None
     env = ""
     if rest[:1] == ["demo"]:
         env, rest = "--env demo ", rest[1:]
-    command = SHORTCUTS[name][0]
-    if rest and command.startswith("events "):
-        command = "events"  # explicit options replace the default limit
-    return f"mb {env}{command} {' '.join(rest)}".strip()
+    command = f"{name} {' '.join(rest)}" if rest else DEFAULTS.get(name, name)
+    return f"mb {env}{command}"
 
 
 class RemoteCommandError(ValueError):
@@ -135,6 +152,16 @@ class RemoteCommand:
 
     def text(self) -> str:
         return "mb " + shlex.join(self.args)
+
+    def typed(self) -> str:
+        """As the owner types it in Telegram: mb --env demo risk-scale 0.3 is
+        /risk_scale demo 0.3."""
+        words = list(self.args)
+        if words[:1] == ["--env"]:
+            words = words[2:]
+        demo = " demo" if self.env == "demo" else ""
+        rest = shlex.join(words[1:])
+        return f"/{telegram_name(words[0])}{demo}" + (f" {rest}" if rest else "")
 
 
 def parse(text: str) -> RemoteCommand:

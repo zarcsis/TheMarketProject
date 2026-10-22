@@ -75,26 +75,26 @@ The remote is a Telegram bot that runs on the bot's computer and answers only th
 **What it does:**
 
 - **Notifications** from the live and demo bots: entries, closes, stop-outs, mode changes, errors, session loss, delisting announcements.
-- **Your commands:** any allowed `mb` command, typed as `/mb ...`, for example `/mb risk-scale 0.3` or `/mb close SOLUSDT`.
+- **Your commands:** every allowed `mb` command is a Telegram command of its own: `/status`, `/risk_scale 0.3`, `/close SOLUSDT`, `/session start`.
+  - Typing `/` opens Telegram's command menu with all of them and a short description.
+  - Telegram allows no hyphens in commands, so `risk-scale` and `on-stop` are `/risk_scale` and `/on_stop`; typed with a hyphen they work too.
+  - Commands act on the live bot; put `demo` right after the command for Demo Trading: `/status demo`.
   - `/help` lists every command by group; `/help <command>` explains one (`/help propose`).
-  - Typing `/` opens Telegram's command menu with short commands: `/status`, `/summary`, `/forward`, `/report`, `/events`, `/ps`, `/market`, `/check`, `/strategies`, `/pause`, `/resume`. Add `demo` for Demo Trading: `/status demo`.
-  - Commands that close positions or move money exist only as `/mb ...`, and ask for a second tap.
-  - Only the `mb` program runs, never a shell.
-  - Key generation, research, and data downloads stay on the computer.
+  - Closing positions, flattening, transfers, and stopping a session ask for a second tap.
 - **Claude's proposals** (`mb ask`) arrive with Run and Decline buttons. They run only when you tap Run, and they expire.
 - **A second tap** is required for closing positions, stopping a session, and transfers.
-- **A daily summary** arrives at 09:00 computer time: both bots, equity against the window start, positions, the last 24 hours, and errors. Change the time with `SUMMARY_TIME` in `.env`, or ask for it any time with `/mb summary`.
-- **On Mondays, an out-of-time check** follows the summary. For each strategy it shows the trades it would have made since 2026-10-01 against its research estimate (research 13). Ask for it any time with `/mb forward`.
+- **A daily summary** arrives at 09:00 computer time: both bots, equity against the window start, positions, the last 24 hours, and errors. Change the time with `SUMMARY_TIME` in `.env`, or ask for it any time with `/summary`.
+- **On Mondays, an out-of-time check** follows the summary. For each strategy it shows the trades it would have made since 2026-10-01 against its research estimate (research 13). Ask for it any time with `/forward`.
 
 **Free text** goes to Claude in the Claude app, not to the remote.
 
 **Starting live from the phone.** Each step is an owner action.
 
-1. `/mb check`: must pass.
-2. `/mb transfer 100 to-futures`, then confirm. This funds the futures wallet.
-3. `/mb strategies set delisting-short-4h`
-4. `/mb session start`
-5. `/mb risk-scale 0.3`: about a third of the normal risk while live fills are unproven.
+1. `/check`: must pass.
+2. `/transfer 100 to-futures`, then confirm. This funds the futures wallet.
+3. `/strategies set delisting-short-4h`
+4. `/session start`
+5. `/risk_scale 0.3`: about a third of the normal risk while live fills are unproven.
 
    **Why not lower.** Binance rejects orders below 5 USDT of notional. At about 120 USDT of equity, a 20% stop, and 3% risk per trade:
 
@@ -104,9 +104,9 @@ The remote is a Telegram bot that runs on the bot's computer and answers only th
    Strategies with a 40% stop (`listing-short-busy-7d`, `airdrop-short-7d`) need a scale of about 0.6 at this account size. At 0.6 the position is 5.46 USDT, risking 2.20 USDT; at 0.5 it would still be below the minimum.
 
    A rejected strategy entry is reported on the remote (`entry_rejected`).
-6. `/mb auto on`: the strategies may trade from now on. On the very first start they are off. After that the setting is kept across restarts, so a restarted bot trades again by itself.
+6. `/auto on`: the strategies may trade from now on. On the very first start they are off. After that the setting is kept across restarts, so a restarted bot trades again by itself.
 
-To stop: `/mb auto off` (no new trades) or `/mb session stop` (closes everything), then confirm.
+To stop: `/auto off` (no new trades) or `/session stop` (closes everything), then confirm.
 
 The remote was tested on Demo Trading on 2026-10-22:
 
@@ -114,9 +114,9 @@ The remote was tested on Demo Trading on 2026-10-22:
 - a second confirmation for `close`;
 - `strategies set` and `restart` from the phone.
 
-**A session started from the remote** lives until `/mb session stop`. It is detached from the remote, so restarting the remote does not end it. On the computer, `uv run mb session start --detach` starts the same kind of session.
+**A session started from the remote** lives until `/session stop`. It is detached from the remote, so restarting the remote does not end it. On the computer, `uv run mb session start --detach` starts the same kind of session.
 
-**What runs where.** Sessions, bots, and the remote run in the background without console windows. `mb ps` (or `/mb ps`) lists them with their process ids and start times. A process started in a terminal titles its window by its role, such as `mb live session`; processes started before 2026-10-22 may still show untitled `python` windows until their next restart. Do not close these windows:
+**What runs where.** Sessions, bots, and the remote run in the background without console windows. `mb ps` (or `/ps`) lists them with their process ids and start times. A process started in a terminal titles its window by its role, such as `mb live session`; processes started before 2026-10-22 may still show untitled `python` windows until their next restart. Do not close these windows:
 
 - closing a bot's window stops the bot at once; its positions stay protected by their exchange-side stops, and the session ends;
 - closing a session's window stops the heartbeat; about two minutes later the bot acts on its on-stop mode (by default it closes everything) and exits.
@@ -138,8 +138,8 @@ You can still close positions by hand in the Binance app; the bot notices that w
 
 **Before a planned shutdown or restart:**
 
-- `/mb session stop`, then confirm, to close everything;
-- or `/mb auto off` to stop new entries and keep the open positions under their stops.
+- `/session stop`, then confirm, to close everything;
+- or `/auto off` to stop new entries and keep the open positions under their stops.
 
 **After the computer is back:**
 

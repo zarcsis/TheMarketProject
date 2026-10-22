@@ -5,7 +5,7 @@ answers only the owner's chat, and executes nothing but the `mb` program:
 
 - notifications from the live and demo bots' journals;
 - proposals queued by Claude (`mb ask`), run only when the owner taps Run;
-- commands the owner types (`/mb ...`), checked by `marketbot.remote`;
+- commands the owner types (`/status`, `/risk_scale 0.3`, ...), checked by `marketbot.remote`;
 - a second tap for anything that closes positions, stops trading, or moves money.
 
 Claude never runs live trading commands itself; the remote runs them for the owner.
@@ -148,7 +148,7 @@ async def run_mb(command: remote.RemoteCommand) -> str:
             state_dir(command.env) / "session.pid",  # type: ignore[arg-type]
             log_dir(command.env) / "session.log",  # type: ignore[arg-type]
         )
-        return f"Started `{command.text()}` (pid {pid}). Check /mb status in a minute."
+        return f"Started {command.typed()} (pid {pid}). Check /status in a minute."
     process = await asyncio.create_subprocess_exec(
         sys.executable,
         "-m",
@@ -201,13 +201,8 @@ class Remote:
     async def publish_commands(self) -> None:
         """Telegram's command menu: typing "/" offers the short commands with descriptions."""
         commands = [
-            {"command": name, "description": description}
-            for name, (_, description) in remote.SHORTCUTS.items()
-            if name != "help"
-        ]
-        commands += [
-            {"command": "mb", "description": "Any mb command, e.g. /mb risk-scale 0.3"},
-            {"command": "help", "description": remote.SHORTCUTS["help"][1]},
+            {"command": remote.telegram_name(name), "description": description}
+            for name, description in remote.MENU.items()
         ]
         try:
             await self.api.call("setMyCommands", commands=commands)
@@ -289,9 +284,7 @@ class Remote:
         first, _, rest = text.partition(" ")
         if first.split("@")[0] in ("/start", "/help"):
             await self.api.send(chat, remote.help_text(rest))
-        elif first.split("@")[0] == "/mb":
-            await self._handle_command(text)
-        elif (command := remote.shortcut(text)) is not None:
+        elif (command := remote.command_text(text)) is not None:
             await self._handle_command(command)
         else:
             await self.api.send(
@@ -321,7 +314,7 @@ class Remote:
         )
         await self.api.send(
             self.chat_id,
-            f"Confirm: {command.text()}\nThis closes positions, stops trading, or moves money.",
+            f"Confirm: {command.typed()}\nThis closes positions, stops trading, or moves money.",
             [[button("Yes, run it", f"confirm:{token}"), button("Cancel", f"cancel:{token}")]],
         )
 
@@ -347,7 +340,7 @@ class Remote:
             elif action == "cancel":
                 if pending.proposal_id is not None:
                     self.proposals.complete(pending.proposal_id, "declined", {})
-                await self.api.send(chat, f"Cancelled: {pending.command.text()}")
+                await self.api.send(chat, f"Cancelled: {pending.command.typed()}")
             else:
                 await self._execute(pending.command, pending.proposal_id)
             return
@@ -386,7 +379,8 @@ class Remote:
             await self.api.send(
                 self.chat_id,
                 f"Proposal #{proposal.id} from Claude\n{payload['why']}\n\n"
-                f"Command: {payload['command']}\nValid until {expires:%H:%M} UTC",
+                f"Command: {remote.parse(payload['command']).typed()}\n"
+                f"Valid until {expires:%H:%M} UTC",
                 [
                     [
                         button("Run", f"run:{proposal.id}"),

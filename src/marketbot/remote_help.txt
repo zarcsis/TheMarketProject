@@ -1,7 +1,7 @@
 ## overview
 TheMarketProject remote
 
-Commands act on the live bot. For Demo Trading add "demo" to a short command (/status demo) or "--env demo" to /mb (/mb --env demo status).
+Commands act on the live bot. For Demo Trading put "demo" right after the command: /status demo, /risk_scale demo 0.5.
 
 Read (safe):
 /status - equity, window, risk, positions
@@ -16,102 +16,102 @@ Read (safe):
 
 Control (no orders):
 /pause, /resume - stop or allow new entries
-/mb risk-scale 0.3 - risk per trade multiplier
-/mb auto on|off - let strategies trade or not
-/mb strategies set a,b - choose strategies
-/mb on-stop flatten|keep - positions at session end
-/mb restart - reload the bot, keep positions
+/risk_scale 0.3 - risk per trade multiplier
+/auto on|off - let strategies trade or not
+/strategies set a,b - choose strategies
+/on_stop flatten|keep - positions at session end
+/restart - reload the bot, keep positions
 
 Trades and money (a second tap for close, flatten, transfer, session stop):
-/mb propose SYMBOL long|short --stop P
-/mb close SYMBOL - close one position
-/mb flatten - close everything
-/mb transfer 50 to-futures|to-spot
-/mb session start|stop
+/propose SYMBOL long|short --stop P
+/close SYMBOL - close one position
+/flatten - close everything
+/transfer 50 to-futures|to-spot
+/session start|stop
 
 /help <command> explains one command, e.g. /help propose.
 Claude's proposals arrive with Run and Decline buttons and expire.
 Free text is not read here: talk to Claude in the Claude app.
 
 ## status
-/status, /mb status
+/status
 The bot's state: equity and its wallets, the 24-hour window (start equity E0, target, loss line, mode NORMAL/CAUTION/PROTECT/DEFENSE/HALTED), open risk, positions with their stops, and recent events.
 
 ## summary
-/summary, /mb summary [--hours 24]
+/summary [--hours 24]
 Both bots in one message: equity against the window start, positions, trades and the exchange's PnL for the period, errors. Sent by itself every morning at SUMMARY_TIME.
 
 ## forward
-/forward, /mb forward [--since 2026-10-01]
+/forward [--since 2026-10-01]
 Research 13 in short: for each event strategy, the trades it would have made on events since the date, with the bot's own settings, against the research estimate. n: closed trades; open: still within their holding time. Sent by itself on Mondays. Takes up to a minute.
 
 ## report
-/report, /mb report [--hours 24]
+/report [--hours 24]
 Trades, closes, and the exchange's own accounting for the period: realized PnL, fees, and funding per symbol.
 
 ## events
-/events, /mb events [--limit 30]
+/events [--limit 15]
 The latest journal events: entries, stop moves, closes, commands, errors.
 
 ## ps
-/ps, /mb ps
+/ps
 The mb processes on the computer: the Telegram remote, sessions, and bots, with their process ids and start times.
 
 ## market
-/market, /mb market
+/market
 A read-only brief from public data: trend, sentiment, funding extremes, and recent Binance announcements.
 
 ## check
-/check, /mb check [--public-only]
+/check [--public-only]
 Read-only checks: connectivity, clock, API key permissions (withdrawals must be off), wallets, and futures settings. Must show no FAIL before live trading.
 
 ## pause
-/pause, /mb pause
+/pause
 No new positions. Open positions keep their stops and are still managed. Undo with /resume.
 
 ## resume
-/resume, /mb resume
+/resume
 New positions are allowed again.
 
 ## risk-scale
-/mb risk-scale <0..1>
+/risk_scale <0..1>
 Multiplies the risk per trade (3% of the window's start equity). Never above 1. Below about 0.3, a 20% stop gives positions under Binance's 5 USDT minimum, so entries are rejected; 40% stops need about 0.6. Kept across restarts.
 
 ## auto
-/mb auto on|off
+/auto on|off
 on: the configured strategies may open positions. off: the bot only manages risk on open positions. Kept across restarts.
 
 ## strategies
-/strategies, /mb strategies show
-/mb strategies set <name,name,...>
-show: the configured strategies and every preset. set: choose them (comma-separated, no spaces); they take effect at the next start or /mb restart. Example: /mb strategies set delisting-short-4h,monitoring-short-1d
+/strategies
+/strategies set <name,name,...>
+Without arguments: the configured strategies and every preset. set: choose them (comma-separated, no spaces); they take effect at the next start or /restart. Example: /strategies set delisting-short-4h,monitoring-short-1d
 
 ## on-stop
-/mb on-stop flatten|keep
+/on_stop flatten|keep
 What happens to positions when the session ends: flatten closes them (default); keep leaves them open under their exchange stops. Applies at the next start or restart.
 
 ## restart
-/mb restart
+/restart
 Restarts the bot on the current code. Positions stay open under their exchange stops and are taken over by the new bot. Settings (risk scale, auto, strategies) are kept.
 
 ## propose
-/mb propose SYMBOL long|short --stop PRICE [--target PRICE] [--why TEXT]
+/propose SYMBOL long|short --stop PRICE [--target PRICE] [--why TEXT]
 A manual trade. The risk manager sizes it (risk per trade over the stop distance) or rejects it with the reasons; it gets an exchange-side stop, and a take-profit if --target is given.
-Example: /mb propose SOLUSDT short --stop 182.5 --why "test"
+Example: /propose SOLUSDT short --stop 182.5 --why "test"
 
 ## close
-/mb close SYMBOL
+/close SYMBOL
 Closes one position at market and cancels its orders. Asks for a second tap.
 
 ## flatten
-/mb flatten
+/flatten
 Closes every position and cancels every order, even without a running bot. Asks for a second tap.
 
 ## transfer
-/mb transfer AMOUNT to-futures|to-spot [--asset USDT]
+/transfer AMOUNT to-futures|to-spot [--asset USDT]
 Moves funds between the spot and USD-M futures wallets of the live account. Asks for a second tap. Withdrawals are impossible: the API key has no withdrawal permission.
 
 ## session
-/mb session start
-/mb session stop
+/session start
+/session stop
 start: starts the bot in the background; it lasts until stop, independent of the remote and of Claude. stop: closes every position and order, then stops the bot; asks for a second tap.

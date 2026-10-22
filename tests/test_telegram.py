@@ -259,16 +259,28 @@ async def test_monday_summary_adds_the_out_of_time_check(rig: Rig) -> None:
     assert rig.ran == ["mb summary", "mb forward"]
 
 
-async def test_short_commands_run_like_mb_commands(rig: Rig) -> None:
+async def test_plain_commands_run_like_mb_commands(rig: Rig) -> None:
     await rig.message("/status demo")
     await rig.message("/report --hours 48")
     await rig.message("/strategies@SomeBot")
-    assert rig.ran == ["mb --env demo status", "mb report --hours 48", "mb strategies show"]
+    await rig.message("/risk_scale 0.3")
+    assert rig.ran == [
+        "mb --env demo status",
+        "mb report --hours 48",
+        "mb strategies show",
+        "mb risk-scale 0.3",
+    ]
+
+
+async def test_plain_dangerous_commands_still_ask_twice(rig: Rig) -> None:
+    await rig.message("/flatten")
+    assert rig.ran == []
+    assert rig.telegram.texts()[-1].startswith("Confirm: /flatten")
 
 
 async def test_help_explains_every_command(rig: Rig) -> None:
     await rig.message("/help")
-    assert "/mb propose SYMBOL" in rig.telegram.texts()[-1]
+    assert "/propose SYMBOL" in rig.telegram.texts()[-1]
     await rig.message("/help risk-scale")
     assert "5 USDT minimum" in rig.telegram.texts()[-1]
     await rig.message("/nonsense")

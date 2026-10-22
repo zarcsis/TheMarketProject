@@ -69,18 +69,27 @@ def test_every_allowed_command_is_documented() -> None:
     import re
 
     assert set(remote.ALLOWED) <= set(remote.DETAILS)
-    for name, (command, description) in remote.SHORTCUTS.items():
-        assert re.fullmatch(r"[a-z0-9_]{1,32}", name)
+    assert set(remote.ALLOWED) | {"help"} == set(remote.MENU)
+    for name, description in remote.MENU.items():
+        assert re.fullmatch(r"[a-z0-9_]{1,32}", remote.telegram_name(name))
         assert 3 <= len(description) <= 256
-        if command:
-            parse(command)  # every shortcut is an allowed command
     assert len(remote.HELP) < 4000  # one Telegram message
 
 
-def test_shortcuts() -> None:
-    assert remote.shortcut("/status") == "mb status"
-    assert remote.shortcut("/status demo") == "mb --env demo status"
-    assert remote.shortcut("/events demo --limit 5") == "mb --env demo events --limit 5"
-    assert remote.shortcut("/help") is None
-    assert remote.shortcut("/flatten") is None  # dangerous commands only through /mb
-    assert remote.shortcut("hello") is None
+def test_telegram_commands() -> None:
+    assert remote.command_text("/status") == "mb status"
+    assert remote.command_text("/status demo") == "mb --env demo status"
+    assert remote.command_text("/risk_scale 0.3") == "mb risk-scale 0.3"
+    assert remote.command_text("/risk-scale demo 0.5") == "mb --env demo risk-scale 0.5"
+    assert remote.command_text("/strategies") == "mb strategies show"
+    assert remote.command_text("/events --limit 5") == "mb events --limit 5"
+    assert remote.command_text("/auto@SomeBot on") == "mb auto on"
+    assert remote.command_text("/mb --env demo status") == "mb --env demo status"
+    assert remote.command_text("/keygen") is None
+    assert remote.command_text("hello") is None
+
+
+def test_commands_are_shown_as_typed() -> None:
+    assert parse("mb --env demo risk-scale 0.3").typed() == "/risk_scale demo 0.3"
+    assert parse("mb close SOLUSDT").typed() == "/close SOLUSDT"
+    assert parse("mb session stop").typed() == "/session stop"
