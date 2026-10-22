@@ -86,7 +86,16 @@ async def _run_bot(env: Env, paths: Paths, store: Store, config: RiskConfig) -> 
         market = BinanceREST(FUTURES_BASE_URL, "/fapi/v1/time")
         strategies = presets.build(os.environ.get("MB_STRATEGIES", ""), Klines(market), store.log)
         store.log("strategies", names=[s.name for s in strategies])
-        engine = Engine(venue, store, config, heartbeat=heartbeat, strategies=strategies)
+        keep = os.environ.get("MB_ON_STOP", "flatten") == "keep"
+        store.log("on_stop", mode="keep positions" if keep else "flatten")
+        engine = Engine(
+            venue,
+            store,
+            config,
+            heartbeat=heartbeat,
+            strategies=strategies,
+            keep_positions_on_stop=keep,
+        )
         sync = asyncio.create_task(_keep_time_synced(binance))
         try:
             return await engine.run()

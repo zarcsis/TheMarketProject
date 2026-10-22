@@ -87,9 +87,13 @@ class Engine:
         *,
         heartbeat: Heartbeat | None = None,
         strategies: Sequence[Strategy] = (),
+        keep_positions_on_stop: bool = False,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self.strategies = list(strategies)
+        # When the session ends: close everything (the default), or leave positions open
+        # with their exchange-side stops for the next session (multi-day strategies).
+        self.keep_positions_on_stop = keep_positions_on_stop
         self.exchange = exchange
         self.store = store
         self.config = config
@@ -142,6 +146,10 @@ class Engine:
             self.stopping = "session lost"
             self.store.log("session_lost", heartbeat_age_s=_seconds(self.heartbeat.age(now)))
         if self.stopping:
+            if self.keep_positions_on_stop and not self._must_be_flat():
+                secured = await self._secure_for_handover(now)
+                self._write_status(now, error=None if secured else "securing stops; retrying")
+                return not secured
             flat = await self.executor.flatten(self.stopping)
             self._write_status(now, error=None if flat else "flatten incomplete; retrying")
             return not flat
@@ -160,6 +168,31 @@ class Engine:
         self._write_status(now)
         if self.stopping:
             return await self.tick()  # a stop command: close everything now, not next tick
+        return True
+
+    def _must_be_flat(self) -> bool:
+        window, project = self.window, self.project
+        return (window is not None and window.mode in FLAT_MODES) or (
+            project is not None and project.paused
+        )
+
+    async def _secure_for_handover(self, now: datetime) -> bool:
+        """Leave only positions that the exchange protects; True once that holds."""
+        account = await self._fetch_account(now)
+        if account is None:
+            return False
+        await self._reconcile(account)  # restores missing stops, closes what it cannot protect
+        account = await self._fetch_account(now)
+        if account is None:
+            return False
+        unprotected = [p for p in account.positions.values() if not account.stops_for(p)]
+        if unprotected:
+            return False
+        self.store.log(
+            "positions_kept",
+            reason=self.stopping,
+            positions={s: str(p.qty) for s, p in account.positions.items()},
+        )
         return True
 
     async def _fetch_account(self, now: datetime) -> AccountState | None:

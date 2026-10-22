@@ -337,3 +337,28 @@ async def test_orphan_reduce_only_stop_is_cancelled_after_target(rig: Rig) -> No
     await rig.tick()
     assert not rig.exchange.conditional
     assert "orphan_orders_cancelled" in rig.events()
+
+
+async def test_keep_mode_leaves_protected_positions_on_session_loss(tmp_path: Path) -> None:
+    rig = Rig(tmp_path, heartbeat=True)
+    rig.engine.keep_positions_on_stop = True
+    await rig.tick()
+    await open_long(rig)
+    rig.exchange.conditional.clear()  # the stop vanished just before the session ended
+    rig.clock.advance(seconds=121)
+    assert await rig.tick() is False
+    assert "SOLUSDT" in rig.exchange.holdings
+    assert [s.trigger_price for s in rig.stops()] == [D(98)]
+    assert {"session_lost", "stop_missing", "positions_kept"} <= set(rig.events())
+
+
+async def test_keep_mode_still_flattens_when_the_window_is_halted(tmp_path: Path) -> None:
+    rig = Rig(tmp_path, heartbeat=True)
+    rig.engine.keep_positions_on_stop = True
+    await rig.tick()
+    await open_long(rig)
+    rig.exchange.wallet -= D(12)
+    await rig.tick()  # DEFENSE closes everything anyway
+    rig.clock.advance(seconds=121)
+    assert await rig.tick() is False
+    assert not rig.exchange.holdings
