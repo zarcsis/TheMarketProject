@@ -9,6 +9,7 @@ from typing import Any
 
 from marketbot.backtest.signals import Donchian, Fade, OpeningRange
 from marketbot.backtest.trades import ExitRules
+from marketbot.strategy.delisting import DelistingShort, DelistingShortConfig
 from marketbot.strategy.listing import ListingShort, ListingShortConfig
 from marketbot.strategy.runtime import Klines, SignalStrategy, SignalStrategyConfig, Strategy
 
@@ -43,6 +44,12 @@ LISTING_PRESETS: dict[str, ListingShortConfig] = {
 }
 
 
+# Research 04: short a perpetual 5 minutes after its delisting announcement, 20% stop, 4 hours.
+DELISTING_PRESETS: dict[str, DelistingShortConfig] = {
+    "delisting-short-4h": DelistingShortConfig(),
+}
+
+
 def build(names: str, klines: Klines, journal: Callable[..., Any]) -> list[Strategy]:
     strategies: list[Strategy] = []
     for name in (part.strip() for part in names.split(",") if part.strip()):
@@ -50,7 +57,9 @@ def build(names: str, klines: Klines, journal: Callable[..., Any]) -> list[Strat
             strategies.append(SignalStrategy(PRESETS[name], klines, journal=journal))
         elif name in LISTING_PRESETS:
             strategies.append(ListingShort(klines, LISTING_PRESETS[name], journal=journal))
+        elif name in DELISTING_PRESETS:
+            strategies.append(DelistingShort(klines, DELISTING_PRESETS[name], journal=journal))
         else:
-            known = ", ".join([*PRESETS, *LISTING_PRESETS])
+            known = ", ".join([*PRESETS, *LISTING_PRESETS, *DELISTING_PRESETS])
             raise ValueError(f"Unknown strategy preset {name!r}; known: {known}")
     return strategies

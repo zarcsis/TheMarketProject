@@ -240,7 +240,12 @@ def research_strategies(
     period = strategies.StudyPeriod(
         date.fromisoformat(start), date.fromisoformat(split), date.fromisoformat(end)
     )
-    trades = strategies.run_trades(root, period, progress=typer.echo)
+    from marketbot.research.feasibility import non_crypto_symbols
+
+    info = httpx.get("https://fapi.binance.com/fapi/v1/exchangeInfo", timeout=30).json()
+    trades = strategies.run_trades(
+        root, period, exclude=non_crypto_symbols(info), progress=typer.echo
+    )
     trades_out.parent.mkdir(parents=True, exist_ok=True)
     trades.write_parquet(trades_out)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -274,3 +279,22 @@ def research_listings(
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text, encoding="utf-8")
     typer.echo(f"{trades.height} trades; report written to {out}")
+
+
+@research_app.command("delistings")
+def research_delistings(
+    since: Annotated[str, typer.Option(help="First announcement day.")] = "2024-10-01",
+    out: Annotated[Path, typer.Option(help="Report to write.")] = Path(
+        "research/results/04-delistings.md"
+    ),
+    root: Annotated[Path, typer.Option(help="Storage directory.")] = archive.DEFAULT_ROOT,
+) -> None:
+    """Run research 04 (perpetuals after Binance delisting announcements)."""
+    from marketbot.research import delistings
+
+    start = datetime.fromisoformat(since).replace(tzinfo=UTC)
+    frame, text = delistings.run(root, Path("data/announcements/delistings.parquet"), start)
+    frame.write_parquet(Path("data/research/04-delisting-events.parquet"))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text, encoding="utf-8")
+    typer.echo(f"{frame.height} events; report written to {out}")

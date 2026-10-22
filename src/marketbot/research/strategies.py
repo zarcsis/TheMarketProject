@@ -95,9 +95,13 @@ def to_entries(signals: pl.DataFrame, bars: Bars) -> list[Entry]:
 
 
 def run_trades(
-    root: Path, period: StudyPeriod, *, progress: Callable[[str], object] = print
+    root: Path,
+    period: StudyPeriod,
+    *,
+    exclude: frozenset[str] = frozenset(),
+    progress: Callable[[str], object] = print,
 ) -> pl.DataFrame:
-    daily = load_daily(root)
+    daily = load_daily(root).filter(~pl.col("symbol").is_in(exclude))
     universes = select_universes(daily).filter(pl.col("day").is_between(period.start, period.end))
     trend = btc_trend(root)
     costs = Costs()
@@ -199,6 +203,8 @@ def report(trades: pl.DataFrame, period: StudyPeriod) -> str:
         "on 5-minute bars, entry at the next bar's open.",
         "- Costs: taker fee 0.05% per side, entry slippage 0.02%, stop slippage 0.1%; a bar "
         "touching stop and target counts as a stop; positions close at the end of the UTC day.",
+        "- Crypto perpetuals only: TradFi (stocks, commodities, FX, pre-market) and index "
+        "contracts are excluded from the universes.",
         f"- {len(STRATEGIES)} strategies x {len(EXITS)} exits x 3 universes x BTC filter on/off "
         f"= {ranked.height} variants. Expect some to look good by chance.",
         "",

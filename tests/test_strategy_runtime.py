@@ -9,6 +9,7 @@ from test_engine_drills import STOP_MARKET, Rig
 from marketbot.backtest.signals import Donchian
 from marketbot.backtest.trades import ExitRules
 from marketbot.domain import Side
+from marketbot.strategy.delisting import DelistingShort
 from marketbot.strategy.listing import ListingShort
 from marketbot.strategy.runtime import (
     Close,
@@ -196,3 +197,46 @@ async def test_listing_short_enters_busy_listings_and_exits_after_hold() -> None
     held = PositionView("BUSYUSDT", Side.SHORT, D(2), D("2.8"), D("0.8"), now, "listing-short")
     later = now + timedelta(days=7, minutes=10)
     assert await strategy.step(later, {"BUSYUSDT": held}) == [Close("BUSYUSDT", "held 7 days")]
+
+
+async def test_delisting_short_enters_after_delay_and_closes_after_hold() -> None:
+    released = datetime(2026, 10, 22, 7, 0, 30, tzinfo=UTC)
+
+    async def fetch():
+        return pl.DataFrame(
+            {
+                "title": ["Binance Will Delist ABC, XYZ on 2026-11-05"],
+                "released": [released],
+            }
+        )
+
+    info = {"symbols": []}
+    klines = FakeKlines(info, {("ABCUSDT", "1m"): daily_frame([(released, 5.0, 0.0)])})
+
+    async def perpetuals():
+        return ["ABCUSDT"]
+
+    klines.perpetuals = perpetuals
+    strategy = DelistingShort(klines, fetch=fetch)
+    assert await strategy.step(released + timedelta(minutes=1), {}) == []  # too early
+    actions = await strategy.step(released + timedelta(minutes=6), {})
+    assert [(a.symbol, a.side, a.stop) for a in actions] == [("ABCUSDT", Side.SHORT, D("6.00"))]
+    # XYZ has no tradable perpetual; neither symbol is proposed twice.
+    assert await strategy.step(released + timedelta(minutes=8), {}) == []
+    held = PositionView(
+        "ABCUSDT", Side.SHORT, D(5), D(6), D(1), released + timedelta(minutes=6), "delisting-short"
+    )
+    later = released + timedelta(hours=4, minutes=7)
+    assert await strategy.step(later, {"ABCUSDT": held}) == [Close("ABCUSDT", "held 4:00:00")]
+
+
+async def test_stale_delisting_announcement_is_skipped() -> None:
+    released = datetime(2026, 10, 22, 7, 0, tzinfo=UTC)
+
+    async def fetch():
+        return pl.DataFrame(
+            {"title": ["Binance Will Delist ABC on 2026-11-05"], "released": [released]}
+        )
+
+    strategy = DelistingShort(FakeKlines({"symbols": []}, {}), fetch=fetch)
+    assert await strategy.step(released + timedelta(hours=1), {}) == []
