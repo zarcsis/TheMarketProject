@@ -531,6 +531,25 @@ def research_upbit(
     typer.echo(f"{frame.height} events; report written to {out}")
 
 
+@research_app.command("forward")
+def research_forward(
+    since: Annotated[str, typer.Option(help="First event day.")] = "2026-10-01",
+    out: Annotated[Path, typer.Option(help="Report to write.")] = Path(
+        "research/results/13-out-of-time.md"
+    ),
+) -> None:
+    """Run research 13 (the event strategies on events after the research data ends)."""
+    from marketbot.research import forward
+
+    start = datetime.fromisoformat(since).replace(tzinfo=UTC)
+    now = datetime.now(UTC)
+    frame = asyncio.run(forward.collect(start, now))
+    frame.write_parquet(Path("data/research/13-forward.parquet"))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(forward.report(frame, start, now), encoding="utf-8")
+    typer.echo(f"{frame.height} events; report written to {out}")
+
+
 @research_app.command("reversal")
 def research_reversal(
     split: Annotated[str, typer.Option(help="First day of the second year.")] = "2025-10-01",

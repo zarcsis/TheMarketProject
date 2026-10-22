@@ -526,6 +526,7 @@ TheMarketProject/
 - [10](../research/10-upbit.md): after Upbit KRW listings the Binance perpetual fades, but funding on the crowded short takes most of it; no strategy. Funding in the live delisting and Monitoring Tag shorts is negligible (0.08% per trade).
 - [11](../research/11-unlocks.md): shorting into scheduled insider unlocks earns about 1% over the same token's baseline, only in one year and not significant across tokens; no strategy.
 - [12](../research/12-reversal.md): weekly cross-sectional reversal and momentum flip sign between years; no strategy.
+- [13](../research/13-out-of-time.md): an out-of-time check of the event strategies on events after the research data ends, re-run with `mb research forward`. October 2026: the delisting short averaged +8.8% over 4 events.
 
 **Promoted to the forward test:** `delisting-short-4h`, `monitoring-short-1d`, and `listing-short-busy-7d`; since research 09, also `airdrop-short-7d` (Demo Trading only).
 

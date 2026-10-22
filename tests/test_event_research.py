@@ -200,3 +200,34 @@ def test_reversal_signals_use_only_past_data_for_the_rank() -> None:
     assert row["past"] == pytest.approx((opens[i - 1] + 1) / opens[i - LOOKBACK] - 1)
     assert row["forward"] == pytest.approx(opens[i + HOLD] / opens[i] - 1)
     assert row["short"] == pytest.approx(-row["forward"] - 0.001 + HOLD * 0.001)
+
+
+def test_forward_simulation_stops_holds_and_marks_open_trades() -> None:
+    from marketbot.research.forward import Rule, simulate
+
+    start = datetime(2026, 10, 1, tzinfo=UTC)
+    times = [start + timedelta(minutes=5 * i) for i in range(12)]
+
+    def bars(highs: list[float]) -> pl.DataFrame:
+        return pl.DataFrame(
+            {
+                "open_time": times,
+                "open": [100.0] * 12,
+                "high": highs,
+                "close": [90.0] * 12,
+            }
+        )
+
+    funding = pl.DataFrame(
+        {"time": [start + timedelta(minutes=20)], "rate": [0.01]},
+        schema={"time": pl.Datetime("us", "UTC"), "rate": pl.Float64},
+    )
+    rule = Rule("test", 0.20, timedelta(minutes=30), timedelta(0), "")
+    held = simulate(bars([100.0] * 12), funding, start, rule)
+    assert held["status"] == "held"
+    assert held["with_funding"] == pytest.approx(0.10 - 0.0005 * 1.9 + 0.01)
+    stopped = simulate(bars([100.0, 125.0] + [100.0] * 10), funding, start, rule)
+    assert stopped["status"] == "stopped"
+    assert stopped["return"] == pytest.approx(-0.20 * 1.002 - 0.002 - 0.0005 * (1 + 1.2 * 1.002))
+    long_rule = Rule("test", 0.20, timedelta(hours=2), timedelta(0), "")
+    assert simulate(bars([100.0] * 12), funding, start, long_rule)["status"] == "open"
