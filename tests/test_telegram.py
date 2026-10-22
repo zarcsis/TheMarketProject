@@ -71,7 +71,8 @@ def rig(tmp_path: Path) -> Rig:
 async def test_owner_command_runs(rig: Rig) -> None:
     await rig.message("/mb --env demo status")
     assert rig.ran == ["mb --env demo status"]
-    assert rig.telegram.texts()[-1] == "ran mb --env demo status"
+    assert rig.telegram.texts()[-1] == "<pre>ran mb --env demo status</pre>"
+    assert rig.telegram.sent[-1]["parse_mode"] == "HTML"
 
 
 async def test_strangers_are_ignored(rig: Rig) -> None:

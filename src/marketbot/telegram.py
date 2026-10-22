@@ -12,6 +12,7 @@ Claude never runs live trading commands itself; the remote runs them for the own
 """
 
 import asyncio
+import html
 import secrets
 import sys
 from collections.abc import Callable
@@ -104,9 +105,18 @@ class TelegramAPI:
         return await self.call("getUpdates", offset=offset, timeout=wait_s)
 
     async def send(
-        self, chat_id: int, text: str, buttons: list[list[dict[str, str]]] | None = None
+        self,
+        chat_id: int,
+        text: str,
+        buttons: list[list[dict[str, str]]] | None = None,
+        *,
+        monospace: bool = False,
     ) -> dict[str, Any]:
+        """Send text; `monospace` keeps column alignment (command output, tables)."""
         params: dict[str, Any] = {"chat_id": chat_id, "text": text[:4000]}
+        if monospace:
+            params["text"] = f"<pre>{html.escape(text[-3900:])}</pre>"
+            params["parse_mode"] = "HTML"
         if buttons:
             params["reply_markup"] = {"inline_keyboard": buttons}
         return await self.call("sendMessage", **params)
@@ -251,7 +261,7 @@ class Remote:
         output = await self.runner(command)
         if proposal_id is not None:
             self.proposals.complete(proposal_id, "done", {"output": output[-1000:]})
-        await self.api.send(self.chat_id, output)
+        await self.api.send(self.chat_id, output, monospace=True)
 
     async def _handle_callback(self, callback: dict[str, Any]) -> None:
         message = callback.get("message") or {}

@@ -12,7 +12,6 @@ from typing import Any
 import polars as pl
 
 from marketbot.exchange.rest import BinanceREST
-from marketbot.research.feasibility import markdown_table
 from marketbot.state.store import Store
 
 MONEY_TYPES = ("REALIZED_PNL", "COMMISSION", "FUNDING_FEE")
@@ -78,27 +77,42 @@ def journal_summary(store: Store, start: datetime) -> dict[str, Any]:
     }
 
 
+def income_table(income: pl.DataFrame) -> list[str]:
+    """Aligned columns, narrow enough for a phone screen (about 34 characters)."""
+    rows = income.sort("net", descending=True).iter_rows(named=True)
+    lines = [f"{'symbol':<11}{'net':>8}{'pnl':>8}{'fees':>7}"]
+    for row in rows:
+        symbol = row["symbol"].removesuffix("USDT")[:10]
+        lines.append(
+            f"{symbol:<11}{row['net']:>+8.2f}{row['realized']:>+8.2f}{row['commission']:>+7.2f}"
+        )
+    return lines
+
+
 def render(start: datetime, end: datetime, income: pl.DataFrame, journal: dict[str, Any]) -> str:
-    lines = [f"Report {start:%Y-%m-%d %H:%M} to {end:%Y-%m-%d %H:%M} UTC", ""]
+    lines = [f"Report {start:%m-%d %H:%M} to {end:%m-%d %H:%M} UTC", ""]
     if income.height:
         totals = income.select(pl.exclude("symbol").sum()).row(0, named=True)
-        lines.append(
-            f"Exchange income (USDT): net {totals['net']:+.4f} = realized {totals['realized']:+.4f}"
-            f" + commission {totals['commission']:+.4f} + funding {totals['funding']:+.4f}"
-        )
-        lines += ["", markdown_table(income, 4), ""]
+        lines += [
+            f"Net {totals['net']:+.2f} USDT",
+            f"  pnl {totals['realized']:+.2f}, fees {totals['commission']:+.2f},"
+            f" funding {totals['funding']:+.2f}",
+            "",
+            *income_table(income),
+            "",
+        ]
     else:
-        lines += ["Exchange income: none in this period.", ""]
-    lines.append(f"Journal: {journal['events']} events, {len(journal['entries'])} entries")
+        lines += ["No exchange income in this period.", ""]
+    lines.append(f"Entries: {len(journal['entries'])}")
     for strategy, count in journal["entries_by_strategy"].most_common():
-        lines.append(f"  entries by {strategy}: {count}")
-    for reason, count in journal["closes"].most_common():
-        if count:
-            lines.append(f"  closes ({reason}): {count}")
+        lines.append(f"  {count} x {strategy}")
+    closes = [(reason, count) for reason, count in journal["closes"].most_common() if count]
+    if closes:
+        lines.append("Closes:")
+        lines += [f"  {count} x {reason}" for reason, count in closes]
     for change in journal["mode_changes"]:
-        lines.append(
-            f"  mode {change.get('previous')} -> {change.get('current')}: {change.get('reason')}"
-        )
+        lines.append(f"Mode {change.get('previous')} -> {change.get('current')}")
+        lines.append(f"  {change.get('reason')}")
     if journal["errors"]:
-        lines.append("  errors: " + ", ".join(f"{k} x{v}" for k, v in journal["errors"].items()))
+        lines.append("Errors: " + ", ".join(f"{k} x{v}" for k, v in journal["errors"].items()))
     return "\n".join(lines)
