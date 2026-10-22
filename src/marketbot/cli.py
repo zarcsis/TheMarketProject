@@ -386,3 +386,17 @@ def research_monitoring(
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text, encoding="utf-8")
     typer.echo(f"{frame.height} events; report written to {out}")
+
+
+@research_app.command("portfolio")
+def research_portfolio(
+    out: Annotated[Path, typer.Option(help="Report to write.")] = Path(
+        "research/results/08-portfolio.md"
+    ),
+) -> None:
+    """Run research 08 (event strategies as a portfolio under the risk rules)."""
+    from marketbot.research import portfolio
+
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(portfolio.run(), encoding="utf-8")
+    typer.echo(f"Report written to {out}")

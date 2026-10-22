@@ -24,9 +24,12 @@ The owner runs `mb flatten` and `mb session stop`.
 |---|---|---|
 | `delisting-short-4h` ([research 04](../research/04-delistings.md)) | Positive in both years. +4.9% to +8.4% per trade, t 3.2 over 35 announcements. Rare: about 1.5 announcements a month. | **Yes**, the first candidate |
 | `listing-short-busy-7d` ([research 03](../research/03-listings.md)) | Positive in both years after funding and with a BTC hedge, t 1–2.3. Holds positions for 7 days. | Only with `MB_ON_STOP=keep` (see below) |
+| `monitoring-short-1d` ([research 07](../research/07-monitoring-tag.md)) | Positive in both years: +3.6% to +6.0% per trade, t 2.2 over 19 announcements. Holds positions for 1 day. | Only with `MB_ON_STOP=keep`, or as a shorter hold |
 | `donchian24-*` ([research 02](../research/02-strategies.md)) | No reliable edge. | **No**, Demo Trading only |
 
-**Simulated portfolio of both event strategies.** Over 2024-10 to 2026-09, at 3% risk per trade, the two event strategies return about +22% a year with a 29% realized drawdown. That is about 0.06% a day. The +10% per day target is not supported by any evidence found so far.
+**Simulated portfolio** ([research 08](../research/08-portfolio.md)). Over 2024-10 to 2026-09, at 3% risk per trade, the three event strategies (delisting, Monitoring Tag, busy listings) multiply equity by about 3.7 with a 14% realized drawdown. In 2026 alone they returned about +55% annualized.
+
+These are in-sample upper bounds. Even so, they mean about +0.2% a day; the +10% per day target is not supported by any evidence found so far.
 
 ## Before the first live session
 
