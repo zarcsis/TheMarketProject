@@ -653,6 +653,36 @@ def research_distress(
     typer.echo(f"{trades.height} trades; report written to {out}")
 
 
+@research_app.command("squeeze")
+def research_squeeze(
+    since: Annotated[str, typer.Option(help="First switch day.")] = "2024-10-01",
+    split: Annotated[str, typer.Option(help="First day of the second year.")] = "2025-10-01",
+    jobs: Annotated[
+        Path | None,
+        typer.Option(help="Only write the 5-minute kline months the study needs to this file."),
+    ] = None,
+    out: Annotated[Path, typer.Option(help="Report to write.")] = Path(
+        "research/results/16-squeeze.md"
+    ),
+    root: Annotated[Path, typer.Option(help="Storage directory.")] = archive.DEFAULT_ROOT,
+) -> None:
+    """Run research 16 (perpetuals after Binance shortens their funding interval)."""
+    from marketbot.research import squeeze
+
+    start = datetime.fromisoformat(since).replace(tzinfo=UTC)
+    if jobs is not None:
+        events = squeeze.switches(archive.load("fundingRate", root=root), start)
+        needed = squeeze.jobs(events)
+        jobs.write_text("".join(f"{symbol} {month}" + chr(10) for symbol, month in needed))
+        typer.echo(f"{len(needed)} symbol-months written to {jobs}")
+        return
+    trades, text = squeeze.run(root, start, date.fromisoformat(split))
+    trades.write_parquet(Path("data/research/16-squeeze-trades.parquet"))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text, encoding="utf-8")
+    typer.echo(f"{trades.height} trades; report written to {out}")
+
+
 @research_app.command("unlocks")
 def research_unlocks(
     start: Annotated[str, typer.Option(help="First unlock day.")] = "2024-10-15",

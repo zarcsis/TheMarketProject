@@ -271,3 +271,20 @@ def test_forward_brief_fits_a_phone() -> None:
     assert "delisting 4h    2  -5.0    0  +5" in text
     assert "airdrop 7d      0     -    1  +10" in text
     assert max(len(line) for line in text.splitlines()) <= 40
+
+
+def test_funding_interval_switches_are_found() -> None:
+    from marketbot.research.squeeze import switches
+
+    times = [datetime(2025, 4, 1, tzinfo=UTC) + timedelta(hours=4 * i) for i in range(4)]
+    funding = pl.DataFrame(
+        {
+            "symbol": ["A"] * 4,
+            "calc_time": times,
+            "funding_interval_hours": [4, 4, 1, 1],
+            "last_funding_rate": [-0.002, -0.02, -0.005, -0.004],
+        }
+    )
+    [row] = switches(funding, times[0]).iter_rows(named=True)
+    assert (row["switched"], row["previous"], row["interval"]) == (times[2], 4, 1)
+    assert row["rate_8h"] == pytest.approx(-0.01)
