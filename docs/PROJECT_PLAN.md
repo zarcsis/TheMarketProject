@@ -1,6 +1,6 @@
 # TheMarketProject: Project Plan
 
-Status: v0.4, 2026-10-22. Phases 0, 1, and 2 are complete. Next: Phase 3 (strategies and backtests).
+Status: v0.5, 2026-10-22. Phases 0-2 are complete; Phase 3 research has promoted two event strategies; Phase 4 (forward test on Demo Trading) is running. Live start: [LIVE.md](LIVE.md).
 
 ## 1. Goal and framing
 
@@ -506,6 +506,27 @@ TheMarketProject/
   - no single trade accounting for most of the PnL.
 
 **Deliverable:** `research/02-strategies.md` with results, including the strategies that failed.
+
+**Status (2026-10-22).**
+
+**Research done:**
+
+- [02](../research/02-strategies.md): intraday technical rules have no edge in either year.
+- [03](../research/03-listings.md): shorting busy new listings is positive in both years.
+- [04](../research/04-delistings.md): shorting after delisting announcements is positive in both years and the strongest result.
+- [05](../research/05-spot-listings.md): longs on spot listing announcements lose.
+
+**Promoted to the forward test:** `delisting-short-4h` and `listing-short-busy-7d`.
+
+- **Delisting short** meets the criteria: 79 events, profit factor above 1.2, and positive in both years.
+- **Listing short** has thinner t-statistics but a broad, consistent effect.
+
+**How to go live:** [LIVE.md](LIVE.md).
+
+**Decisions for the owner:**
+
+- keeping multi-day positions between sessions (`MB_ON_STOP=keep`);
+- the risk per trade for the event strategies.
 
 ### Phase 4: Forward test (runs alongside Phase 3)
 
