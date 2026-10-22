@@ -45,3 +45,28 @@ def test_render_is_phone_friendly() -> None:
     assert "|" not in text
     assert max(len(line) for line in text.splitlines()) <= 40
     assert "DOGE          +4.50   +4.73  -0.23" in text
+
+
+def test_summary_block() -> None:
+    from collections import Counter
+
+    from marketbot.reporting import summary_block
+
+    snapshot = {
+        "window": {"mode": "PROTECT", "e0": "125"},
+        "account": {"equity": "136.89", "positions": [{"symbol": "DOGEUSDT", "side": "SHORT"}]},
+    }
+    journal = {
+        "entries": [{}, {}],
+        "closes": Counter({"stop": 1}),
+        "mode_changes": [{"previous": "NORMAL", "current": "PROTECT"}],
+        "errors": {},
+    }
+    income = summarize_income(
+        [{"symbol": "DOGEUSDT", "incomeType": "REALIZED_PNL", "income": "4.5"}]
+    )
+    lines = summary_block("demo", True, snapshot, income, journal)
+    assert lines[0] == "DEMO: bot running, mode PROTECT"
+    assert "equity 136.89 (window start 125.00, +9.5%)" in lines[1]
+    assert "DOGEUSDT SHORT" in lines[2]
+    assert "2 entries, 1 closes, net +4.50 USDT" in lines[3]

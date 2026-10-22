@@ -46,6 +46,7 @@ def register(app: typer.Typer) -> None:
         status,
         events,
         report,
+        summary,
         pause,
         resume,
         risk_scale,
@@ -573,11 +574,19 @@ def remote_run() -> None:
                 journals(),
                 states=lambda: bot_states(journals()),
                 healthcheck_url=settings.healthcheck_url,
+                summary_time=_summary_time(settings.summary_time),
             ).run()
         finally:
             await api.close()
 
     asyncio.run(run())
+
+
+def _summary_time(text: str) -> tuple[int, int] | None:
+    if not text.strip():
+        return None
+    hour, minute = (int(part) for part in text.split(":"))
+    return hour, minute
 
 
 @remote_app.command("start")
@@ -618,3 +627,43 @@ def remote_status() -> None:
     store = remote_commands.store()
     for event in store.last_events(5):
         typer.echo(f"  {event.ts:%H:%M} {event.kind} {event.payload}")
+
+
+def summary(
+    hours: Annotated[float, typer.Option(help="Period in hours.")] = 24.0,
+) -> None:
+    """A short summary of the live and demo bots, for the daily Telegram message."""
+    from marketbot.reporting import fetch_income, journal_summary, summarize_income, summary_block
+
+    end = datetime.now(UTC)
+    start = end - timedelta(hours=hours)
+    blocks: list[str] = [f"Summary {end:%Y-%m-%d %H:%M} UTC, last {hours:g} h"]
+    for env in ("live", "demo"):
+        paths = Paths(env)  # type: ignore[arg-type]
+        if not paths.store.exists():
+            continue
+        store = Store(paths.store)
+        settings = Settings().for_env(env)  # type: ignore[arg-type]
+        income = None
+        if settings.has_credentials:
+
+            async def run(settings: Settings = settings) -> list[dict[str, Any]]:
+                async with Binance.from_settings(settings) as binance:
+                    await binance.futures.sync_time()
+                    return await fetch_income(binance.futures, start, end)
+
+            try:
+                income = summarize_income(asyncio.run(run()))
+            except Exception as exc:  # the summary must arrive even if one venue fails
+                blocks.append(f"({env} income unavailable: {type(exc).__name__})")
+        blocks += [
+            "",
+            *summary_block(
+                env,
+                bot_running(paths.pid) is not None,
+                store.get("status"),
+                income,
+                journal_summary(store, start),
+            ),
+        ]
+    typer.echo("\n".join(blocks))

@@ -22,6 +22,7 @@ ALLOWED = frozenset(
         "status",
         "events",
         "report",
+        "summary",
         "market",
         "check",
         "pause",

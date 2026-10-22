@@ -189,6 +189,7 @@ class Remote:
     clock: Callable[[], datetime] = lambda: datetime.now(UTC)
     states: Callable[[], list["BotState"]] = lambda: []
     healthcheck_url: str | None = None
+    summary_time: tuple[int, int] | None = (9, 0)  # local time of the daily summary
     offset: int = 0
     confirmations: dict[str, PendingConfirmation] = field(default_factory=dict)
 
@@ -245,6 +246,7 @@ class Remote:
             try:
                 await self.push_events()
                 await self.push_proposals()
+                await self.maybe_send_summary()
             except TelegramError as exc:
                 print(f"{self.clock():%H:%M:%S} telegram: {exc}", flush=True)
             await asyncio.sleep(5)
@@ -372,6 +374,20 @@ class Remote:
                 ],
             )
             self.proposals.complete(proposal.id, "sent", {})
+
+    async def maybe_send_summary(self) -> None:
+        """Once a day, after `summary_time` on the computer's clock, send `mb summary`."""
+        if self.chat_id is None or self.summary_time is None:
+            return
+        local = self.clock().astimezone()
+        if (local.hour, local.minute) < self.summary_time:
+            return
+        today = local.date().isoformat()
+        if self.proposals.get("summary_sent") == today:
+            return
+        self.proposals.put("summary_sent", today)
+        output = await self.runner(remote.parse("summary"))
+        await self.api.send(self.chat_id, output, monospace=True)
 
     async def push_events(self) -> None:
         if self.chat_id is None:

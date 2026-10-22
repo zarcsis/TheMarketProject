@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     telegram_chat_id: int | None = None
     # Optional external monitor (e.g. a healthchecks.io ping URL) the remote pings every minute.
     healthcheck_url: str | None = None
+    # Local time (HH:MM) of the remote's daily summary; empty to turn it off.
+    summary_time: str = "09:00"
 
     spot_base_url: str = SPOT_BASE_URL
     futures_base_url: str = FUTURES_BASE_URL

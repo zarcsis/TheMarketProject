@@ -236,3 +236,17 @@ def test_access_loss_message_hints_at_the_ip() -> None:
         datetime(2026, 10, 22, 13, 0, tzinfo=UTC),
     )
     assert "API ACCESS LOST" in text and "add the new IP" in text
+
+
+async def test_daily_summary_is_sent_once_after_its_time(rig: Rig) -> None:
+    morning = datetime(2026, 10, 22, 8, 59).astimezone()
+    rig.remote.clock = lambda: morning
+    await rig.remote.maybe_send_summary()
+    assert rig.ran == []
+    rig.remote.clock = lambda: morning + timedelta(minutes=2)
+    await rig.remote.maybe_send_summary()
+    await rig.remote.maybe_send_summary()
+    assert rig.ran == ["mb summary"]
+    rig.remote.clock = lambda: morning + timedelta(days=1, minutes=2)
+    await rig.remote.maybe_send_summary()
+    assert rig.ran == ["mb summary", "mb summary"]

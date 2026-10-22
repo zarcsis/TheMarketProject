@@ -116,3 +116,39 @@ def render(start: datetime, end: datetime, income: pl.DataFrame, journal: dict[s
     if journal["errors"]:
         lines.append("Errors: " + ", ".join(f"{k} x{v}" for k, v in journal["errors"].items()))
     return "\n".join(lines)
+
+
+def summary_block(
+    env: str,
+    running: bool,
+    snapshot: dict[str, Any] | None,
+    income: pl.DataFrame | None,
+    journal: dict[str, Any],
+) -> list[str]:
+    """A few lines per bot for the daily Telegram summary."""
+    head = f"{env.upper()}: bot {'running' if running else 'NOT running'}"
+    window = (snapshot or {}).get("window") or {}
+    account = (snapshot or {}).get("account") or {}
+    if window:
+        head += f", mode {window.get('mode')}"
+    lines = [head]
+    if account and window:
+        equity, e0 = float(account["equity"]), float(window["e0"])
+        lines.append(f"  equity {equity:.2f} (window start {e0:.2f}, {(equity / e0 - 1):+.1%})")
+        positions = account.get("positions") or []
+        held = ", ".join(f"{p['symbol']} {p['side']}" for p in positions) or "none"
+        lines.append(f"  positions: {held}")
+    closes = sum(journal["closes"].values())
+    net = "n/a"
+    if income is not None:
+        totals = (
+            income.select(pl.exclude("symbol").sum()).row(0, named=True) if income.height else {}
+        )
+        net = f"{totals.get('net', 0.0):+.2f} USDT"
+    lines.append(f"  last 24h: {len(journal['entries'])} entries, {closes} closes, net {net}")
+    for change in journal["mode_changes"]:
+        lines.append(f"  mode {change.get('previous')} -> {change.get('current')}")
+    errors = {k: v for k, v in journal["errors"].items()}
+    if errors:
+        lines.append("  errors: " + ", ".join(f"{k} x{v}" for k, v in errors.items()))
+    return lines
