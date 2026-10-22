@@ -225,3 +225,14 @@ async def test_network_errors_are_retried(monkeypatch) -> None:
     api = TelegramAPI(TOKEN, transport=httpx.MockTransport(flaky))
     assert (await api.send(OWNER, "result"))["message_id"] == 7
     assert len(calls) == 2
+
+
+def test_access_loss_message_hints_at_the_ip() -> None:
+    from marketbot.telegram import describe
+
+    text = describe(
+        "account_access_lost",
+        {"error": "HTTP 401, code -2015: Invalid API-key, IP, or permissions"},
+        datetime(2026, 10, 22, 13, 0, tzinfo=UTC),
+    )
+    assert "API ACCESS LOST" in text and "add the new IP" in text

@@ -50,6 +50,8 @@ NOTIFY = {
     "flatten_error",
     "protect",
     "bot_restarted",
+    "account_access_lost",
+    "account_access_restored",
 }
 
 HELP = """TheMarketProject remote.
@@ -440,6 +442,19 @@ def describe(kind: str, payload: dict[str, Any], ts: datetime) -> str:
                 f"{time} mode {payload.get('previous')} -> {payload.get('current')}: "
                 f"{payload.get('reason')}, equity {payload.get('equity')}"
             )
+        case "account_access_lost":
+            error = str(payload.get("error", ""))
+            hint = (
+                " The key rejects this computer: if the IP changed, add the new IP to the key."
+                if "-2015" in error
+                else ""
+            )
+            return (
+                f"{time} API ACCESS LOST: {error[:150]}.{hint} Exchange-side stops still "
+                "protect open positions; the bot cannot manage them until access returns."
+            )
+        case "account_access_restored":
+            return f"{time} API access restored"
         case "protect":
             return f"{time} PROTECT: stops tightened to the floor {payload.get('floor')}"
         case _:

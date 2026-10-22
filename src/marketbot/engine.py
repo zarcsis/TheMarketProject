@@ -104,6 +104,8 @@ class Engine:
         self.last_account: AccountState | None = None
         self.last_ok: datetime | None = None
         self.stopping: str | None = None  # reason, once the engine is shutting down
+        self.failing_since: datetime | None = None  # first failed account read in a row
+        self.access_lost = False
 
     # State in the store.
 
@@ -204,7 +206,15 @@ class Engine:
             stale = self.last_ok is None or now - self.last_ok > STALE_DATA
             self.store.log("account_error", error=str(exc), stale=stale)
             self._write_status(now, error=f"account unavailable: {exc}")
+            self.failing_since = self.failing_since or now
+            if not self.access_lost and now - self.failing_since >= STALE_DATA:
+                # One alert per outage (the remote forwards it), not one per tick.
+                self.access_lost = True
+                self.store.log("account_access_lost", error=str(exc), since=self.failing_since)
             return None
+        if self.access_lost:
+            self.store.log("account_access_restored", lost_since=self.failing_since)
+        self.failing_since, self.access_lost = None, False
         self.last_account, self.last_ok = account, now
         return account
 

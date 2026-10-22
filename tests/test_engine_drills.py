@@ -382,3 +382,17 @@ async def test_close_command_closes_one_position(rig: Rig) -> None:
     assert not rig.exchange.holdings
     assert not rig.exchange.conditional
     assert (await rig.command("close", symbol="ETHUSDT")).status == "rejected"
+
+
+async def test_lost_api_access_is_reported_once_and_restored(rig: Rig) -> None:
+    from marketbot.exchange.rest import BinanceAPIError
+
+    denied = BinanceAPIError(401, -2015, "Invalid API-key, IP, or permissions for action.")
+    for _ in range(3):
+        rig.exchange.fail_next("account", denied)
+        await rig.tick()
+        rig.clock.advance(seconds=40)
+    events = rig.events()
+    assert events.count("account_access_lost") == 1  # after 60 s of failures, once
+    await rig.tick()
+    assert "account_access_restored" in rig.events()
