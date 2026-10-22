@@ -79,12 +79,11 @@ def spawn_detached(command: list[str], pid_file: Path, log_file: Path) -> int:
     log_file.parent.mkdir(parents=True, exist_ok=True)
     pid_file.parent.mkdir(parents=True, exist_ok=True)
     pid_file.unlink(missing_ok=True)
-    intermediate = subprocess.Popen(
+    intermediate = _popen_detached(
         [sys.executable, "-m", "marketbot.session", str(pid_file), str(log_file), *command],
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
-        **_detached(),
     )
     if intermediate.wait(timeout=30) != 0 or not pid_file.exists():
         raise RuntimeError("the intermediate launcher failed")
@@ -94,10 +93,28 @@ def spawn_detached(command: list[str], pid_file: Path, log_file: Path) -> int:
 def _launch(pid_file: Path, log_file: Path, command: list[str]) -> None:
     """Runs in the intermediate process."""
     with log_file.open("ab") as log:
-        process = subprocess.Popen(
-            command, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, **_detached()
+        process = _popen_detached(
+            command, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT
         )
     pid_file.write_text(str(process.pid))
+
+
+def _popen_detached(command: list[str], **kwargs: Any) -> subprocess.Popen:
+    """Popen outside the caller's console, process group, and (when allowed) job object.
+
+    uv's `mb.exe` launcher holds its children in a Windows job that is closed when the
+    launcher exits (seen with `mb remote start`, which returns at once), killing everything
+    started inside it. Breaking away from the job keeps the detached process alive.
+    """
+    if os.name != "nt":
+        return subprocess.Popen(command, start_new_session=True, **kwargs)
+    flags = _detached()["creationflags"]
+    try:
+        return subprocess.Popen(
+            command, creationflags=flags | subprocess.CREATE_BREAKAWAY_FROM_JOB, **kwargs
+        )
+    except OSError:
+        return subprocess.Popen(command, creationflags=flags, **kwargs)
 
 
 def _detached() -> dict[str, Any]:
