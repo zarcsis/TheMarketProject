@@ -2,6 +2,7 @@
 
 import time
 from collections.abc import Callable, Mapping
+from decimal import Decimal
 from typing import Any
 from urllib.parse import quote, urlencode
 
@@ -113,4 +114,6 @@ def _encode(params: Mapping[str, Any]) -> str:
 def _format(value: Any) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
+    if isinstance(value, Decimal):
+        return format(value, "f")  # never exponent notation such as 1E+1
     return str(value)

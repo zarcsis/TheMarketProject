@@ -7,15 +7,10 @@ once (with exit fees and slippage) stays at or above the entry floor.
 from collections.abc import Sequence
 from dataclasses import dataclass
 from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
-from enum import StrEnum
 
+from marketbot.domain import Side
 from marketbot.risk.config import Costs, RiskConfig
 from marketbot.risk.window import ENTRY_MODES, Mode, WindowState
-
-
-class Side(StrEnum):
-    LONG = "LONG"
-    SHORT = "SHORT"
 
 
 @dataclass(frozen=True)
