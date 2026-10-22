@@ -47,6 +47,7 @@ def register(app: typer.Typer) -> None:
         events,
         report,
         summary,
+        forward,
         pause,
         resume,
         risk_scale,
@@ -667,6 +668,17 @@ def remote_status() -> None:
     store = remote_commands.store()
     for event in store.last_events(5):
         typer.echo(f"  {event.ts:%H:%M} {event.kind} {event.payload}")
+
+
+def forward(
+    since: Annotated[str, typer.Option(help="First event day.")] = "2026-10-01",
+) -> None:
+    """Out-of-time check: what each event strategy would have made on events since `since`
+    (research 13, short form; the full report is `mb research forward`)."""
+    from marketbot.research import forward as study
+
+    start = datetime.fromisoformat(since).replace(tzinfo=UTC)
+    typer.echo(study.brief(asyncio.run(study.collect(start, datetime.now(UTC))), start))
 
 
 def summary(

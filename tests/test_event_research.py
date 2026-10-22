@@ -254,3 +254,20 @@ def test_distress_short_ends_with_the_perpetual() -> None:
     assert held["ret"] == pytest.approx(0.20 - 0.0005 * 1.8)
     delisted = short_trade(bars, start, 10, None)  # bars end: exit at the last close
     assert delisted["ended_early"] and delisted["ret"] == pytest.approx(0.40 - 0.0005 * 1.6)
+
+
+def test_forward_brief_fits_a_phone() -> None:
+    from marketbot.research.forward import brief
+
+    frame = pl.DataFrame(
+        {
+            "strategy": ["delisting-short-4h", "delisting-short-4h", "airdrop-short-7d"],
+            "status": ["held", "stopped", "open"],
+            "return": [0.10, -0.20, 0.05],
+            "with_funding": [0.10, -0.20, 0.05],
+        }
+    )
+    text = brief(frame, datetime(2026, 10, 1, tzinfo=UTC))
+    assert "delisting 4h    2  -5.0    0  +5" in text
+    assert "airdrop 7d      0     -    1  +10" in text
+    assert max(len(line) for line in text.splitlines()) <= 40

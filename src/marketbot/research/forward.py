@@ -346,3 +346,30 @@ def report(frame: pl.DataFrame, since: datetime, now: datetime) -> str:
             "",
         ]
     )
+
+
+SHORT_NAMES = {
+    "delisting-short-4h": "delisting 4h",
+    "monitoring-short-1d": "monitoring 1d",
+    "airdrop-short-7d": "airdrop 7d",
+    "listing-short-busy-7d": "listing 7d",
+    "exchange-delisting-short-7d": "bybit/okx 7d",
+}
+
+
+def brief(frame: pl.DataFrame, since: datetime) -> str:
+    """A phone-width summary: closed trades, their mean with funding, and the research
+    estimate, per strategy."""
+    traded = frame.filter(pl.col("return").is_not_null()) if "return" in frame.columns else frame
+    lines = [
+        f"Out-of-time since {since:%Y-%m-%d}",
+        f"{'strategy':<14}{'n':>3}{'mean%':>6}{'open':>5}  est.%",
+    ]
+    for name, rule in RULES.items():
+        part = traded.filter(pl.col("strategy") == name) if traded.height else traded
+        closed = part.filter(pl.col("status") != "open") if part.height else part
+        mean = f"{closed['with_funding'].mean() * 100:+.1f}" if closed.height else "-"
+        opened = part.height - closed.height
+        estimate = rule.expected.split(" (")[0].replace("% to ", "..").replace("%", "")
+        lines.append(f"{SHORT_NAMES[name]:<14}{closed.height:>3}{mean:>6}{opened:>5}  {estimate}")
+    return "\n".join(lines)

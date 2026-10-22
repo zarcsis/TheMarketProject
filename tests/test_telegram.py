@@ -250,3 +250,10 @@ async def test_daily_summary_is_sent_once_after_its_time(rig: Rig) -> None:
     rig.remote.clock = lambda: morning + timedelta(days=1, minutes=2)
     await rig.remote.maybe_send_summary()
     assert rig.ran == ["mb summary", "mb summary"]
+
+
+async def test_monday_summary_adds_the_out_of_time_check(rig: Rig) -> None:
+    monday = datetime(2026, 10, 26, 9, 5).astimezone()
+    rig.remote.clock = lambda: monday
+    await rig.remote.maybe_send_summary()
+    assert rig.ran == ["mb summary", "mb forward"]

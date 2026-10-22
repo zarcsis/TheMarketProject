@@ -406,6 +406,11 @@ class Remote:
         self.proposals.put("summary_sent", today)
         output = await self.runner(remote.parse("summary"))
         await self.api.send(self.chat_id, output, monospace=True)
+        # On Mondays, also the out-of-time check: are the strategies doing what the research
+        # said they would?
+        if local.weekday() == 0:
+            output = await self.runner(remote.parse("forward"))
+            await self.api.send(self.chat_id, output, monospace=True)
 
     async def push_events(self) -> None:
         if self.chat_id is None:

@@ -24,6 +24,7 @@ ALLOWED = frozenset(
         "events",
         "report",
         "summary",
+        "forward",
         "market",
         "check",
         "pause",

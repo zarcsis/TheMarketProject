@@ -81,6 +81,7 @@ The remote is a Telegram bot that runs on the bot's computer and answers only th
 - **Claude's proposals** (`mb ask`) arrive with Run and Decline buttons. They run only when you tap Run, and they expire.
 - **A second tap** is required for closing positions, stopping a session, and transfers.
 - **A daily summary** arrives at 09:00 computer time: both bots, equity against the window start, positions, the last 24 hours, and errors. Change the time with `SUMMARY_TIME` in `.env`, or ask for it any time with `/mb summary`.
+- **On Mondays, an out-of-time check** follows the summary. For each strategy it shows the trades it would have made since 2026-10-01 against its research estimate (research 13). Ask for it any time with `/mb forward`.
 
 **Free text** goes to Claude in the Claude app, not to the remote.
 
