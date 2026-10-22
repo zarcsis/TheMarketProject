@@ -101,6 +101,22 @@ The busy 7-day short with a 40% stop (with funding) by listing quarter:
 
 **Frequency is falling.** Busy crypto listings became rare in 2026, as Binance listed more TradFi contracts. Expect one to three trades a month, not the 10–20 of 2025.
 
+### 6. No float filter (exploratory, 2026-10-22)
+
+Low-float tokens face more unlocks, so they might drift down more. This was checked as follows:
+
+- **Data:** CoinGecko's circulating, total, and maximum supply, matched by ticker, for 328 of 344 listed tokens.
+- **Trade:** the busy 7-day short.
+
+| Float now (circulating / max or total) | First year: trades | First year: mean | Second year: trades | Second year: mean |
+|---|---|---|---|---|
+| Under 25% | 46 | −3.4% | 39 | +10.0% |
+| 25–50% | 60 | −0.7% | 21 | +0.7% |
+| 50–80% | 38 | +9.7% | 11 | +24.2% |
+| 80% or more | 48 | +6.5% | 8 | −5.0% |
+
+**No ordering, and the groups change sign between years.** The float was measured today, not at listing, which blurs the comparison. Even so, nothing here supports a float filter.
+
 ## Implications
 
 - **This is the first structural edge the project has found.** It is consistent across both years and survives funding and a BTC hedge.
