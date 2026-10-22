@@ -1,4 +1,7 @@
-"""Live version of research 04: short perpetuals after a Binance delisting announcement.
+"""Live versions of research 04 and 07: short perpetuals after a Binance announcement.
+
+Research 04: delisting announcements. Research 07: the Monitoring Tag (a delisting risk
+flag). Each configuration names the announcements catalog and the title parser.
 
 Backtest: entry at the open of the first 5-minute bar at least 5 minutes after the
 announcement, stop 20% above entry, close after 4 hours. Live: the strategy polls the
@@ -30,32 +33,45 @@ class DelistingShortConfig:
     delay: timedelta = timedelta(minutes=5)
     max_delay: timedelta = timedelta(minutes=30)
     poll: timedelta = timedelta(minutes=1)
+    name: str = NAME
+    bucket: str = BUCKET
+    catalog: int = announcements.DELISTINGS
+    parser: Callable[[str], list[str]] = announcements.delisted_perpetuals
 
 
 DEFAULT_CONFIG = DelistingShortConfig()
+MONITORING_CONFIG = DelistingShortConfig(
+    hold=timedelta(days=1),
+    name="monitoring-short",
+    bucket="monitoring",
+    catalog=announcements.NEWS,
+    parser=announcements.monitoring_tagged_perpetuals,
+)
 
 Fetch = Callable[[], Awaitable[pl.DataFrame]]
 
 
-async def fetch_latest() -> pl.DataFrame:
-    async with httpx.AsyncClient(timeout=20) as client:
-        return await announcements.fetch_catalog(client, announcements.DELISTINGS, max_pages=1)
+def latest_from(catalog: int) -> Fetch:
+    async def fetch() -> pl.DataFrame:
+        async with httpx.AsyncClient(timeout=20) as client:
+            return await announcements.fetch_catalog(client, catalog, max_pages=1)
+
+    return fetch
 
 
 class DelistingShort:
-    name = NAME
-
     def __init__(
         self,
         klines: Klines,
         config: DelistingShortConfig = DEFAULT_CONFIG,
         *,
-        fetch: Fetch = fetch_latest,
+        fetch: Fetch | None = None,
         journal: Callable[..., Any] = lambda *a, **k: None,
     ) -> None:
         self.config = config
+        self.name = config.name
         self._klines = klines
-        self._fetch = fetch
+        self._fetch = fetch or latest_from(config.catalog)
         self._journal = journal
         self._last_poll: datetime | None = None
         self._pending: dict[str, datetime] = {}  # symbol -> announcement time
@@ -100,8 +116,8 @@ class DelistingShort:
                     stop=price * (1 + self.config.stop),
                     target=None,
                     strategy=self.name,
-                    why=f"delisting announced {released:%Y-%m-%d %H:%M:%S} UTC",
-                    bucket=BUCKET,
+                    why=f"{self.name}: announced {released:%Y-%m-%d %H:%M:%S} UTC",
+                    bucket=self.config.bucket,
                 )
             )
         return actions
@@ -115,7 +131,7 @@ class DelistingShort:
         recent = latest.filter(pl.col("released") >= now - self.config.max_delay)
         for row in recent.iter_rows(named=True):
             released = row["released"].astimezone(UTC)
-            for symbol in announcements.delisted_perpetuals(row["title"]):
+            for symbol in self.config.parser(row["title"]):
                 if (symbol, released) not in self._done and symbol not in self._pending:
                     self._pending[symbol] = released
                     self._journal("delisting_announced", symbol=symbol, title=row["title"])

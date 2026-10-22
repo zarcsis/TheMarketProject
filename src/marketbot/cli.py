@@ -356,3 +356,33 @@ def research_funding(
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text, encoding="utf-8")
     typer.echo(f"{trades.height} trades; report written to {out}")
+
+
+@research_app.command("monitoring")
+def research_monitoring(
+    since: Annotated[str, typer.Option(help="First announcement day.")] = "2024-10-01",
+    out: Annotated[Path, typer.Option(help="Report to write.")] = Path(
+        "research/results/07-monitoring-tag.md"
+    ),
+    root: Annotated[Path, typer.Option(help="Storage directory.")] = archive.DEFAULT_ROOT,
+) -> None:
+    """Run research 07 (short perpetuals after Binance adds the Monitoring Tag)."""
+    from marketbot.data.announcements import monitoring_tagged_perpetuals
+    from marketbot.research import delistings
+
+    start = datetime.fromisoformat(since).replace(tzinfo=UTC)
+    frame, text = delistings.run(
+        root,
+        Path("data/announcements/news.parquet"),
+        start,
+        parser=monitoring_tagged_perpetuals,
+        direction=-1,
+        heading="# Research 07 results: Monitoring Tag announcements",
+        command="uv run mb research monitoring",
+        analysis="../07-monitoring-tag.md",
+        kind="Monitoring Tag",
+    )
+    frame.write_parquet(Path("data/research/07-monitoring-events.parquet"))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text, encoding="utf-8")
+    typer.echo(f"{frame.height} events; report written to {out}")

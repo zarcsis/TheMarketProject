@@ -73,6 +73,19 @@ def spot_listed_perpetuals(title: str) -> list[str]:
     return sorted({f"{ticker}USDT" for ticker in _TICKER.findall(title)})
 
 
+NEWS = 49
+_MONITORING = re.compile(r"Monitoring Tag to Include (.+?) on \d{4}-\d{2}-\d{2}", re.IGNORECASE)
+
+
+def monitoring_tagged_perpetuals(title: str) -> list[str]:
+    """Perpetuals of tokens that get Binance's Monitoring Tag (a delisting risk flag)."""
+    match = _MONITORING.search(title)
+    if not match:
+        return []
+    tokens = re.split(r",\s*|\s*&\s*|\s+and\s+", match.group(1))
+    return sorted({f"{token.strip()}USDT" for token in tokens if token.strip().isalnum()})
+
+
 def save(frame: pl.DataFrame, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     frame.write_parquet(path)
