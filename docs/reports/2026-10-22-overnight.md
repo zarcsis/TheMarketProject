@@ -67,7 +67,25 @@ Covers from 22:00 to 09:00 local time (UTC−3). The owner asked for Phase 3 (st
 - **Listing short:** 6.9 XRP short with a +39.4% stop.
 - **Sizing:** 15% and 7.5% of equity, as designed.
 
-**Forward test.** It has run since about 01:20 UTC with all strategies, including the Donchian variants, which run only to exercise the pipeline. At the time of writing it had made no strategy trades: there were no announcements or busy listings overnight, and no breakout signals. The final state is added below in the morning.
+**Forward test.** It has run since about 01:20 UTC with all strategies, including the Donchian variants, which run only to exercise the pipeline. The event strategies had no events overnight (no delisting, Monitoring Tag, or busy listing). The Donchian variants traded:
+
+| Time (UTC) | What happened |
+|---|---|
+| 02:00 | Shorts in DOGE and SUI. |
+| 02:45 | DOGE stop moved to break-even. |
+| 04:05 to 06:35 | SUI trailing stop tightened step by step to break-even. |
+| 07:00 | Long in MAGMA, the in-play variant. |
+| 07:43 | Equity reached +10% (137.57 against the 137.50 target): the window entered PROTECT. All three stops moved to keep a stop-out above the 136.25 lock floor; open risk 1.52 against a 1.53 cushion. |
+| 07:45 | DOGE closed by its tightened stop, with the profit locked. |
+| 09:00 | Four new shorts in one tick: the defect below. |
+
+**The result is luck, not evidence.** It came from strategies with no backtested edge. What it does show is that profit locking, trailing stops, and break-even moves work on a real venue.
+
+**Defects found by the forward test, all fixed with tests:**
+
+1. **Same-tick entries saw a stale account.** Several entries proposed in one tick were all checked against the account snapshot from the start of the tick. Four shorts opened at once, leaving six positions where the rules allow three. PROTECT mode tightened the stops on the next tick and restored the floor (open risk 2.60 against a 2.62 cushion). In NORMAL mode, though, the open-risk budget could have been exceeded. The engine now re-reads the account after every entry.
+2. **New listings were invisible.** The symbol list was cached once, so a perpetual listed while the bot runs could not be traded. That is exactly the listing-short case. The list now reloads.
+3. **Restarts forgot handled events.** The strategies' memory of handled events was lost on restart, so a stopped-out listing could be re-entered. It is now kept in the store.
 
 ## Market snapshot (01:44 UTC, `mb market`)
 
