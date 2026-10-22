@@ -98,6 +98,34 @@ Covers from 22:00 to 09:00 local time (UTC−3). The owner asked for Phase 3 (st
 2. **New listings were invisible.** The symbol list was cached once, so a perpetual listed while the bot runs could not be traded. That is exactly the listing-short case. The list now reloads.
 3. **Restarts forgot handled events.** The strategies' memory of handled events was lost on restart, so a stopped-out listing could be re-entered. It is now kept in the store.
 
+## Data sources
+
+| Source | Access | Used for |
+|---|---|---|
+| data.binance.vision (klines 1d/5m/1m, funding) | Free, no key | All backtests; 2 years, delisted symbols included |
+| Binance USD-M public REST (klines, exchangeInfo, premiumIndex, 24h tickers) | Free, no key | Live signals, `mb market` |
+| Binance announcements, public website endpoint (catalogs 48 listings, 161 delistings, 49 news) | Free, no key, not an official API | Research 04, 05, 07; live delisting and Monitoring Tag strategies |
+| Binance account REST (`/fapi/v1/income`, account, orders) | API key | Trading, `mb report` |
+| alternative.me Fear & Greed | Free | `mb market` |
+| CoinGecko markets | Free tier | Checked; not used yet (market cap and FDV for float filters) |
+| DefiLlama emissions (token unlocks) | Now paid | Not used |
+
+## Ready and not ready
+
+**Ready:**
+
+- **Risk manager and execution engine.** Drilled on Demo Trading in Phase 2, and again overnight with three fixes.
+- **Event strategies**, implemented and drilled end to end: `delisting-short-4h`, `monitoring-short-1d`, `listing-short-busy-7d`.
+- **Tools:** `mb market` and `mb report`.
+- **The live guide:** [LIVE.md](../LIVE.md).
+
+**Not ready, or not proven:**
+
+- **Live fills.** No real-money trade has happened. Slippage in thin, delisted tokens is unmeasured.
+- **The Phase 4 gate** (5 session-days on Demo Trading without rule violations) has 1 of 5 days, and that day found a defect, since fixed.
+- **No event has happened yet during a session**, so no event strategy has traded a real announcement or listing.
+- **The intraday technical strategies (Donchian)** have no edge and should not run live.
+
 ## Market snapshot (01:44 UTC, `mb market`)
 
 - **BTC:** about 83,750, flat (7d +1.9%, 30d −2.8%), slightly above its 50-day average.
