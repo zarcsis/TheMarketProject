@@ -556,7 +556,7 @@ def _remote_running() -> psutil.Process | None:
 def remote_run() -> None:
     """Run the Telegram remote in the foreground."""
     from marketbot import remote as remote_commands
-    from marketbot.telegram import Remote, TelegramAPI, journals
+    from marketbot.telegram import Remote, TelegramAPI, bot_states, journals
 
     settings = Settings()
     if settings.telegram_bot_token is None:
@@ -566,7 +566,14 @@ def remote_run() -> None:
     async def run() -> None:
         api = TelegramAPI(settings.telegram_bot_token.get_secret_value())
         try:
-            await Remote(api, settings.telegram_chat_id, remote_commands.store(), journals()).run()
+            await Remote(
+                api,
+                settings.telegram_chat_id,
+                remote_commands.store(),
+                journals(),
+                states=lambda: bot_states(journals()),
+                healthcheck_url=settings.healthcheck_url,
+            ).run()
         finally:
             await api.close()
 

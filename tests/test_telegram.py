@@ -182,3 +182,26 @@ async def test_start_message_without_interruptions_has_no_buttons(rig: Rig) -> N
     await rig.remote.announce_start()
     assert "live: bot running" in rig.telegram.texts()[-1]
     assert "reply_markup" not in rig.telegram.sent[-1]
+
+
+def test_remote_run_wires_states_and_healthcheck(tmp_path: Path, monkeypatch) -> None:
+    # Regression: a formatter-collapsed call once dropped these arguments silently.
+    import marketbot.telegram as telegram_module
+    from marketbot.control import remote_run
+
+    captured = {}
+
+    class FakeRemote:
+        def __init__(self, *args, **kwargs) -> None:
+            captured.update(kwargs)
+
+        async def run(self) -> None:
+            return None
+
+    monkeypatch.chdir(tmp_path)  # no real .env
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", TOKEN)
+    monkeypatch.setenv("HEALTHCHECK_URL", "https://hc.example/ping")
+    monkeypatch.setattr(telegram_module, "Remote", FakeRemote)
+    remote_run()
+    assert captured["healthcheck_url"] == "https://hc.example/ping"
+    assert callable(captured["states"])
