@@ -100,3 +100,23 @@ def test_min_notional_extraction() -> None:
     assert spot_min_notional(legacy_spot) == Decimal(10)
     assert futures_min_notional(futures) == Decimal(100)
     assert futures_min_notional({"filters": []}) is None
+
+
+def test_unrestricted_ip_warns_only_when_the_owner_allows_it() -> None:
+    data = {**SAFE_RESTRICTIONS, "ipRestrict": False, "enableMargin": False}
+    assert statuses(evaluate_api_restrictions(data))["Key: IP restriction"] is Status.FAIL
+    allowed = statuses(evaluate_api_restrictions(data, allow_unrestricted_ip=True))
+    assert allowed["Key: IP restriction"] is Status.WARN
+    assert allowed["Key: withdrawals"] is Status.OK
+
+
+def test_margin_loans_warn_on_an_unrestricted_key() -> None:
+    data = {**SAFE_RESTRICTIONS, "ipRestrict": False, "enableMargin": True}
+    results = statuses(evaluate_api_restrictions(data, allow_unrestricted_ip=True))
+    assert results["Key: margin loan and repay"] is Status.WARN
+
+
+def test_withdrawals_still_fail_with_an_unrestricted_key() -> None:
+    data = {**SAFE_RESTRICTIONS, "ipRestrict": False, "enableWithdrawals": True}
+    results = statuses(evaluate_api_restrictions(data, allow_unrestricted_ip=True))
+    assert results["Key: withdrawals"] is Status.FAIL

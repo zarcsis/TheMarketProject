@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     # so position sizes match live trading.
     demo_equity: float = 125.0
 
+    # The owner's decision to run without an IP restriction on the key (dynamic IP): `mb check`
+    # then warns instead of failing. See docs/PROJECT_PLAN.md, decisions.
+    allow_unrestricted_ip: bool = False
+
     # The Telegram remote (`mb remote`): bot token from @BotFather and the owner's chat id.
     telegram_bot_token: SecretStr | None = None
     telegram_chat_id: int | None = None

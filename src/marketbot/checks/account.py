@@ -34,13 +34,15 @@ class CheckResult:
     detail: str
 
 
-async def run_checks(binance: Binance, *, include_private: bool) -> list[CheckResult]:
+async def run_checks(
+    binance: Binance, *, include_private: bool, allow_unrestricted_ip: bool = False
+) -> list[CheckResult]:
     results = await _check_connectivity(binance)
     if any(result.status is Status.FAIL for result in results):
         return results
     results += await _check_symbol_filters(binance)
     if include_private:
-        results += await _check_private(binance)
+        results += await _check_private(binance, allow_unrestricted_ip)
     return results
 
 
@@ -52,22 +54,34 @@ def evaluate_clock(host: str, offset_ms: int) -> CheckResult:
     return CheckResult(f"Clock offset ({host})", status, f"{offset_ms:+d} ms vs. server time")
 
 
-def evaluate_api_restrictions(data: dict[str, Any]) -> list[CheckResult]:
+def evaluate_api_restrictions(
+    data: dict[str, Any], allow_unrestricted_ip: bool = False
+) -> list[CheckResult]:
     def flag(field: str) -> bool | None:
         value = data.get(field)
         return value if isinstance(value, bool) else None
 
+    restricted = flag("ipRestrict") is True
+    if restricted:
+        ip_check = CheckResult("Key: IP restriction", Status.OK, "restricted to trusted IPs")
+    elif allow_unrestricted_ip:
+        # The owner's documented decision (dynamic IP); a warning, never an OK.
+        ip_check = CheckResult(
+            "Key: IP restriction",
+            Status.WARN,
+            "not restricted, allowed by ALLOW_UNRESTRICTED_IP; the key works from any address",
+        )
+    else:
+        ip_check = CheckResult(
+            "Key: IP restriction", Status.FAIL, "not restricted; enable IP access restriction"
+        )
     results = [
         CheckResult("Key: withdrawals", Status.OK, "disabled")
         if flag("enableWithdrawals") is False
         else CheckResult(
             "Key: withdrawals", Status.FAIL, "enabled or not reported; disable withdrawals"
         ),
-        CheckResult("Key: IP restriction", Status.OK, "restricted to trusted IPs")
-        if flag("ipRestrict") is True
-        else CheckResult(
-            "Key: IP restriction", Status.FAIL, "not restricted; enable IP access restriction"
-        ),
+        ip_check,
         CheckResult("Key: reading", Status.OK, "enabled")
         if flag("enableReading") is True
         else CheckResult("Key: reading", Status.FAIL, "disabled; the bot cannot see the account"),
@@ -83,13 +97,23 @@ def evaluate_api_restrictions(data: dict[str, Any]) -> list[CheckResult]:
             if flag(field)
             else CheckResult(name, Status.WARN, f"disabled; {reason}")
         )
-    results.append(
-        CheckResult(
-            "Key: margin loan and repay",
-            Status.INFO,
-            f"{_on_off(flag('enableMargin'))} (optional; only for margin shorts)",
+    if flag("enableMargin") and not restricted:
+        # Without an IP restriction, a leaked key could borrow on margin; the bot never does.
+        results.append(
+            CheckResult(
+                "Key: margin loan and repay",
+                Status.WARN,
+                "enabled on a key without IP restriction; disable it (the bot does not use it)",
+            )
         )
-    )
+    else:
+        results.append(
+            CheckResult(
+                "Key: margin loan and repay",
+                Status.INFO,
+                f"{_on_off(flag('enableMargin'))} (optional; only for margin shorts)",
+            )
+        )
     if flag("enableInternalTransfer"):
         results.append(
             CheckResult("Key: internal transfer", Status.WARN, "enabled; not needed, disable it")
@@ -250,13 +274,13 @@ async def _check_symbol_filters(binance: Binance) -> list[CheckResult]:
     return results
 
 
-async def _check_private(binance: Binance) -> list[CheckResult]:
+async def _check_private(binance: Binance, allow_unrestricted_ip: bool) -> list[CheckResult]:
     spot = binance.spot
     try:
         restrictions = await spot.signed("GET", "/sapi/v1/account/apiRestrictions")
     except (BinanceAPIError, httpx.HTTPError) as exc:
         return [CheckResult("Key permissions", Status.FAIL, f"cannot verify: {exc}")]
-    results = evaluate_api_restrictions(restrictions)
+    results = evaluate_api_restrictions(restrictions, allow_unrestricted_ip)
 
     results += await _optional(
         "Spot account",

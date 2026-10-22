@@ -27,7 +27,10 @@ These are not negotiable.
 - **One path to the exchange.** Every order goes through the risk manager. Do not place orders from ad-hoc scripts, the shell, or direct API calls. The only exception is the emergency `mb flatten` command.
 - **Limits only tighten at runtime.** During a session, risk limits can be tightened but never loosened. Loosening a limit is a committed config change made outside a live session.
 - **Protective stops.** Every position has an exchange-side stop.
-- **Key safety.** The API key has no withdrawal permission and is IP-restricted. `mb check` must pass before any live trading.
+- **Key safety.**
+  - The API key never has withdrawal permission.
+  - An IP restriction is recommended. On 2026-10-22 the owner chose to run without it because of a dynamic IP (`ALLOW_UNRESTRICTED_IP`), so `mb check` warns about it.
+  - `mb check` must show no FAIL before any live trading.
 - **Prohibited trading.** No market manipulation (pump groups, spoofing, wash trading), no martingale, no averaging down.
 - **Live commands.** Run live trading commands only inside a trading session that the user has started.
 

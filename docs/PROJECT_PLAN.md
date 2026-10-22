@@ -603,3 +603,4 @@ TheMarketProject/
 | 4 | Availability of futures and margin | Available. The futures account is in one-way, single-asset mode. | Verified on 2026-10-21 |
 | 5 | Remote control | Telegram alerts and a `/stop` command. | Optional, later |
 | 6 | Repository | Public; MIT license; commits go directly to `main` with CI. | Adopted |
+| 7 | IP restriction on the live key | None, by the owner's decision (dynamic IP). `ALLOW_UNRESTRICTED_IP=true` turns the `mb check` failure into a warning. Withdrawals stay disabled, and margin loans should be off on the key. The bot closes unknown positions and alerts. Binance deletes unrestricted trading keys after 30 days without orders. | Adopted 2026-10-22 |

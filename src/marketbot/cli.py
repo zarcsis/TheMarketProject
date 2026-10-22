@@ -64,7 +64,11 @@ def check(
 
     async def run() -> list[CheckResult]:
         async with Binance.from_settings(settings) as binance:
-            return await run_checks(binance, include_private=include_private)
+            return await run_checks(
+                binance,
+                include_private=include_private,
+                allow_unrestricted_ip=settings.allow_unrestricted_ip,
+            )
 
     try:
         results = asyncio.run(run())

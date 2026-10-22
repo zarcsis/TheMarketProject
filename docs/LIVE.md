@@ -33,7 +33,7 @@ These are in-sample upper bounds. Even so, they mean about +0.2% a day; the +10%
 
 ## Before the first live session
 
-1. **Check the account:** `uv run mb check` must pass.
+1. **Check the account:** `uv run mb check` must show no FAIL. A key without an IP restriction is allowed only with `ALLOW_UNRESTRICTED_IP=true` in `.env`, the owner's decision. Turn off margin loans on such a key; Binance deletes it after 30 days without orders.
 2. **Fund the futures wallet.** In the Binance app or website: **Wallet → Transfer → from Spot to USDⓈ-M Futures**, for example 100 USDT. The futures fee discount needs BNB in the futures wallet too, so you can optionally transfer some BNB as well.
 3. **Close manual positions.** Anything you hold on USD-M futures will be treated as an unknown position and closed by the bot.
 
