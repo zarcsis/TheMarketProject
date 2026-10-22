@@ -64,6 +64,19 @@ The same trades were re-run on 1-minute klines (79 events): a 4-hour hold with a
 
 Entering sooner does not help much: the crash happens within the first minute. The live strategy keeps the 5-minute delay, which does not depend on winning a race against faster bots. Plan with about **+5% per trade**, not the +6.2% of the 5-minute-bar estimate.
 
+### 4. Out-of-time check: October 2026
+
+These announcements came after the research data ends. The trade is a 4-hour short with a 20% stop, from live 1-minute klines, entering 5 minutes after the announcement.
+
+| Announcement (UTC) | Perpetual | Result |
+|---|---|---|
+| 10-14 06:00, spot delisting of EPIC and QUICK | EPICUSDT | +8.5% |
+| | QUICKUSDT | −0.1% |
+| 10-21 09:30, futures delisting of PTBUSDT and MITOUSDT | MITOUSDT | +13.7% |
+| | PTBUSDT | +11.2% |
+
+The mean is +8.3% per trade over 4 events, consistent with the study.
+
 ## Implications
 
 - **This is the strongest result so far,** but the events are rare: about 1.5 announcements a month, each naming 2–3 tokens.
