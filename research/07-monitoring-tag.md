@@ -33,6 +33,8 @@ Short with a 20% stop, mean per trade:
 
 **The 1-day hold is the most consistent.** It is positive in both years, and 14 of 19 announcements are positive on average.
 
+**Out-of-time check, October 2026.** One announcement, BICO and CVC on 10-09 07:00 UTC, came after the data ends. On live 5-minute klines, the 1-day short with a 20% stop made −0.5% and −6.1%. Two events prove nothing either way, but they do not confirm the effect. Treat this strategy as weaker than the delisting short.
+
 ## Implications
 
 - **A second announcement-driven short.** The live strategy is `monitoring-short-1d`: a short 5 to 30 minutes after the announcement, with a 20% exchange-side stop, held 1 day.
