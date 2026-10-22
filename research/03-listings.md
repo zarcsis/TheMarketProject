@@ -67,6 +67,8 @@ The live bot may enter hours after 00:00 UTC. The 7-day short with a 40% stop wa
 | 08:00 | +5.2% | +3.9% | +10.4% |
 | 12:00 | +3.6% | +3.5% | +5.4% |
 
+**Entering on the listing day instead.** Shorting 30 minutes, 2 hours, or 6 hours after the perpetual launches averages +3.4% to +3.8% per trade, against +4.9% at the day-1 open. The listing day is choppy, often a pump, so waiting for day 1 is better.
+
 **Validation of the daily model.** The 00:00 row matches the daily-bar model to the hundredth.
 
 **The live entry window.** The edge holds for entries until midday UTC, which supports the strategy's window (entries until 12:00 UTC).
