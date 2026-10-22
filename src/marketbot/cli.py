@@ -328,3 +328,11 @@ def research_spot_listings(
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text, encoding="utf-8")
     typer.echo(f"{frame.height} events; report written to {out}")
+
+
+@app.command()
+def market() -> None:
+    """Print a read-only market brief from public data (trend, sentiment, funding, events)."""
+    from marketbot.market import brief
+
+    typer.echo(asyncio.run(brief()))
