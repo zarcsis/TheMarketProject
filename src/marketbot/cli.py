@@ -585,6 +585,9 @@ def research_exchanges(
         "research/results/14-exchanges.md"
     ),
     root: Annotated[Path, typer.Option(help="Storage directory.")] = archive.DEFAULT_ROOT,
+    kucoin: Annotated[
+        bool, typer.Option(help="Research 17: KuCoin's delistings instead, as a replication.")
+    ] = False,
 ) -> None:
     """Run research 14 (Binance perpetuals after Bybit and OKX announcements).
 
@@ -603,8 +606,11 @@ def research_exchanges(
     symbols = set(archive.load("klines", root=root, interval="1d")["symbol"].unique())
     symbols -= non_crypto_symbols(info)
     start = datetime.fromisoformat(since).replace(tzinfo=UTC)
+    venues, prior = (("kucoin",), ("bybit", "okx")) if kucoin else (("bybit", "okx"), ())
+    if kucoin and out == Path("research/results/14-exchanges.md"):
+        out = Path("research/results/17-kucoin.md")
     if jobs is not None:
-        events = exchanges.event_frame(notices, binance, start, symbols)
+        events = exchanges.event_frame(notices, binance, start, symbols, venues, prior)
         needed = sorted(
             {
                 (symbol, f"{released + timedelta(days=offset):%Y-%m}")
@@ -616,11 +622,19 @@ def research_exchanges(
         jobs.write_text("".join(f"{symbol} {month}" + chr(10) for symbol, month in needed))
         typer.echo(f"{len(needed)} symbol-months written to {jobs}")
         return
+    extra = {}
+    if kucoin:
+        extra = {
+            "heading": "# Research 17 results: Binance perpetuals after KuCoin delistings",
+            "command": "uv run mb research exchanges --kucoin",
+            "analysis": "../17-kucoin.md",
+        }
     frame, shorts, text = exchanges.run(
-        root, notices, binance, start, date.fromisoformat(split), symbols
+        root, notices, binance, start, date.fromisoformat(split), symbols, venues, prior, **extra
     )
-    frame.write_parquet(Path("data/research/14-exchange-events.parquet"))
-    shorts.write_parquet(Path("data/research/14-exchange-shorts.parquet"))
+    name = "17-kucoin" if kucoin else "14-exchange"
+    frame.write_parquet(Path(f"data/research/{name}-events.parquet"))
+    shorts.write_parquet(Path(f"data/research/{name}-shorts.parquet"))
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text, encoding="utf-8")
     typer.echo(f"{frame.height} events; report written to {out}")

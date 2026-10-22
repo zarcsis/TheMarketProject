@@ -84,4 +84,5 @@ Without them the results improve slightly:
   - **Expected:** about +4.4% per trade, about 2.5 events a month.
   - **Status:** Demo Trading only, like `airdrop-short-7d`. With a 30% stop it needs a live risk scale of about 0.45 at the current account size.
 - **No strategy on Bybit or OKX listings,** and never a long after one.
+- **Replication on KuCoin (research 17):** the drift is there, but with a 30% stop it is weaker (+1.8% over 29 events).
 - **The out-of-time check (`mb research forward`) now includes it.** In October 2026, one closed event (SPORTFUN, +17.5%) and one open.

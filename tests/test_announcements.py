@@ -136,3 +136,20 @@ def test_parse_bybit_and_okx_titles() -> None:
     assert perp_delistings("Delisting of DATAUSDT Perpetual  Contract") == ["DATAUSDT"]
     assert perp_delistings("OKX to delist perpetual futures for AI16Z crypto") == ["AI16ZUSDT"]
     assert perp_delistings("Delisting of PELL, PURSE and TRC") == []
+
+
+def test_parse_kucoin_titles() -> None:
+    from marketbot.data.exchanges import events
+
+    assert events(
+        "kucoin",
+        "KuCoin Futures Will Delist the UUSDT, PLAIUSDT & OXTUSDT Perpetual Contracts (2026-04-21)",
+    ) == [("U", "perp delisting"), ("PLAI", "perp delisting"), ("OXT", "perp delisting")]
+    assert events("kucoin", "KuCoin Will Delist VENOM and NFP on 2026-10-14") == [
+        ("VENOM", "spot delisting"),
+        ("NFP", "spot delisting"),
+    ]
+    assert events("kucoin", "KuCoin Trading Bot Will Delist the DARUSDT Perpetual Contract") == []
+    assert (
+        events("kucoin", "ST: KuCoin Will Delist Certain Projects & Their Associated Tokens") == []
+    )

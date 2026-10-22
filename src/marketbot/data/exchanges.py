@@ -1,4 +1,4 @@
-"""Listing and delisting announcements of Bybit and OKX (public APIs, no key).
+"""Listing and delisting announcements of Bybit, OKX, and KuCoin (public APIs, no key).
 
 Bybit: `/v5/announcements/index`, types `new_crypto` and `delistings`. OKX:
 `/api/v5/support/announcements`, types `announcements-new-listings` and
@@ -9,6 +9,7 @@ futures") cannot be used and are skipped.
 
 import asyncio
 import re
+from datetime import UTC, datetime
 
 import httpx
 import polars as pl
@@ -16,6 +17,7 @@ import polars as pl
 HEADERS = {"User-Agent": "Mozilla/5.0 (research; TheMarketProject)", "Accept": "application/json"}
 BYBIT_URL = "https://api.bybit.com/v5/announcements/index"
 OKX_URL = "https://www.okx.com/api/v5/support/announcements"
+KUCOIN_URL = "https://api.kucoin.com/api/v3/announcements"
 BYBIT_TYPES = ("new_crypto", "delistings")
 OKX_TYPES = ("announcements-new-listings", "announcements-delistings")
 
@@ -73,12 +75,50 @@ async def fetch_okx(client: httpx.AsyncClient, kind: str, max_pages: int = 200) 
     return rows
 
 
+async def fetch_kucoin(
+    client: httpx.AsyncClient, since_ms: int = 1_704_067_200_000, max_pages: int = 40
+) -> list[dict]:
+    """KuCoin's delisting notices since `since_ms` (default 2024-01-01)."""
+    rows: list[dict] = []
+    end_ms = int(datetime.now(UTC).timestamp() * 1000)
+    for page in range(1, max_pages + 1):
+        response = await client.get(
+            KUCOIN_URL,
+            params={
+                "annType": "delistings",
+                "lang": "en_US",
+                "pageSize": 50,
+                "currentPage": page,
+                "startTime": since_ms,
+                "endTime": end_ms,
+            },
+            headers=HEADERS,
+        )
+        response.raise_for_status()
+        data = response.json()["data"]
+        rows += [
+            {
+                "exchange": "kucoin",
+                "type": "delistings",
+                "title": item["annTitle"],
+                "description": item.get("annDesc") or "",
+                "ms": item["cTime"],
+            }
+            for item in data["items"]
+        ]
+        if not data["items"] or page * 50 >= data["totalNum"]:
+            break
+        await asyncio.sleep(0.3)
+    return rows
+
+
 async def fetch_all(client: httpx.AsyncClient) -> pl.DataFrame:
     rows = []
     for kind in BYBIT_TYPES:
         rows += await fetch_bybit(client, kind)
     for kind in OKX_TYPES:
         rows += await fetch_okx(client, kind)
+    rows += await fetch_kucoin(client)
     return pl.DataFrame(rows).with_columns(
         released=pl.from_epoch("ms", time_unit="ms").dt.replace_time_zone("UTC")
     )
@@ -111,6 +151,10 @@ _OKX_SPOT_LIST = re.compile(
 _OKX_PERP_LIST = re.compile(
     r"^OKX to (?:list|launch) perpetual(?: futures)? for (.+?) crypto", re.IGNORECASE
 )
+_KUCOIN_PERP_DELIST = re.compile(
+    r"^KuCoin Futures Will Delist the (.+?) Perpetual Contracts?\b", re.IGNORECASE
+)
+_KUCOIN_SPOT_DELIST = re.compile(r"^KuCoin Will Delist (.+?) on \d{4}-\d{2}-\d{2}", re.IGNORECASE)
 _VAGUE = re.compile(
     r"\b(?:several|selected|leveraged|USDC|X-Perps|TradFi|Pre-IPO)\b|\bequit(?:y|ies)\b"
     r"|margin trading pair",
@@ -145,6 +189,16 @@ def events(exchange: str, title: str, description: str = "") -> list[tuple[str, 
         ):
             if match := pattern.search(title):
                 return [(token, kind) for token in _tokens(match.group(1))]
+    if exchange == "kucoin":
+        if match := _KUCOIN_PERP_DELIST.search(title):
+            contracts = _LIST_SPLIT.split(match.group(1))
+            return [
+                (contract.strip().removesuffix("USDT"), "perp delisting")
+                for contract in contracts
+                if re.fullmatch(r"[A-Z0-9]{1,20}USDT", contract.strip())
+            ]
+        if match := _KUCOIN_SPOT_DELIST.search(title):
+            return [(token, "spot delisting") for token in _tokens(match.group(1))]
     return []
 
 

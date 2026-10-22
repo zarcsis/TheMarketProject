@@ -530,6 +530,7 @@ TheMarketProject/
 - [14](../research/14-exchanges.md): after Bybit or OKX delist their own perpetual of a token, the Binance perpetual drifts down for days: +4.4% per trade for a 7-day short with a 30% stop, positive in all 32 tested variants. Bybit and OKX listings and spot delistings: nothing stable.
 - [15](../research/15-distress.md): shorting Monitoring Tag tokens for weeks loses on average despite most of them lagging: rare, huge squeezes dominate. The edge stays in research 07's first day.
 - [16](../research/16-squeeze.md): after Binance shortens a funding interval, buying crowded shorts has a positive mean that rests on a handful of giant squeezes; no strategy. Shorting into crowded shorts loses, and the event shorts almost never do it.
+- [17](../research/17-kucoin.md): a replication of research 14 on KuCoin delistings. The drift is there without a stop (+11% to +13.5% in the second year), but with a 30% stop the 29 events average only +1.8%. The strategy stays on Bybit and OKX triggers.
 
 **Promoted to the forward test:** `delisting-short-4h`, `monitoring-short-1d`, and `listing-short-busy-7d`; since research 09 and 14, also `airdrop-short-7d` and `exchange-delisting-short-7d` (Demo Trading only).
 
