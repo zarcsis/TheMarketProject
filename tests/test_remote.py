@@ -28,6 +28,7 @@ def test_parse_allowed_commands() -> None:
         ("session stop", True, False),
         ("session start", False, True),
         ("status", False, False),
+        ("ps", False, False),
     ],
 )
 def test_dangerous_and_blocking(text, dangerous, blocking) -> None:

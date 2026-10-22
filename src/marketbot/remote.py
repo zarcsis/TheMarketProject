@@ -20,6 +20,7 @@ STORE_PATH = Path("state") / "remote.db"
 ALLOWED = frozenset(
     {
         "status",
+        "ps",
         "events",
         "report",
         "summary",

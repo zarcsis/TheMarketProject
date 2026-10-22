@@ -14,6 +14,7 @@ Claude never runs live trading commands itself; the remote runs them for the own
 import asyncio
 import html
 import secrets
+import subprocess
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -25,13 +26,17 @@ import httpx
 
 from marketbot import remote
 from marketbot.config import log_dir, state_dir
-from marketbot.session import bot_running, spawn_detached
+from marketbot.session import background_python, bot_running, spawn_detached
 from marketbot.state.store import Store
 
 API = "https://api.telegram.org"
 OUTPUT_LIMIT = 3500
 COMMAND_TIMEOUT_S = 180
 CONFIRM_TTL = timedelta(minutes=5)
+# Commands the remote runs must not flash a console window on the owner's screen.
+NO_WINDOW: dict[str, Any] = (
+    {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
+)
 
 NOTIFY = {
     "entry_filled",
@@ -156,7 +161,7 @@ async def run_mb(command: remote.RemoteCommand) -> str:
         # live session it had started (the session watches its ancestors). Fully detached,
         # it runs until `/mb session stop`.
         pid = spawn_detached(
-            [sys.executable, "-m", "marketbot", *command.args],
+            [background_python(), "-m", "marketbot", *command.args],
             state_dir(command.env) / "session.pid",  # type: ignore[arg-type]
             log_dir(command.env) / "session.log",  # type: ignore[arg-type]
         )
@@ -169,6 +174,7 @@ async def run_mb(command: remote.RemoteCommand) -> str:
         stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
+        **NO_WINDOW,
     )
 
     try:

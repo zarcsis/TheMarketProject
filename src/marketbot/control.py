@@ -7,7 +7,6 @@ it passes the same risk checks as the bot's own decisions. The only exception is
 
 import asyncio
 import os
-import sys
 import time
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -26,7 +25,7 @@ from marketbot.exchange.virtual import VirtualBalance
 from marketbot.execution.executor import Executor
 from marketbot.risk.config import DEFAULT_PATH as DEFAULT_RISK_PATH
 from marketbot.risk.config import RiskConfig, load_risk_config
-from marketbot.session import bot_running, keep_alive, spawn_bot
+from marketbot.session import bot_running, keep_alive, mb_processes, set_title, spawn_bot
 from marketbot.state.store import Store
 from marketbot.strategy import presets
 from marketbot.strategy.runtime import Klines
@@ -44,6 +43,7 @@ def register(app: typer.Typer) -> None:
     commands = (
         bot,
         status,
+        ps,
         events,
         report,
         summary,
@@ -83,6 +83,7 @@ def _env(ctx: typer.Context) -> Env:
 def bot(ctx: typer.Context) -> None:
     """Run the trading engine in the foreground (started by `mb session start`)."""
     env = _env(ctx)
+    set_title(f"mb {env} bot")
     paths = Paths(env)
     store = Store(paths.store)
     risk_path = Path(os.environ.get("MB_RISK_CONFIG") or DEFAULT_RISK_PATH)
@@ -157,6 +158,7 @@ async def _keep_time_synced(binance: Binance) -> None:
 def session_start(ctx: typer.Context) -> None:
     """Start the bot and keep its heartbeat alive while this session lasts (blocking)."""
     env = _env(ctx)
+    set_title(f"mb {env} session")
     paths = Paths(env)
     if not Settings().for_env(env).has_credentials:
         typer.echo(f"No {env} API credentials in .env.", err=True)
@@ -228,6 +230,21 @@ def status(ctx: typer.Context) -> None:
     typer.echo("\nRecent events:")
     for event in store.last_events(8):
         typer.echo(f"  {event.ts:%H:%M:%S} {event.kind} {_brief(event.payload)}")
+
+
+def ps() -> None:
+    """List the running mb processes: sessions, bots, and the Telegram remote."""
+    rows = []
+    for process in psutil.process_iter(["pid", "ppid", "cmdline", "create_time"]):
+        info = process.info
+        rows.append((info["pid"], info["ppid"], info["cmdline"] or [], info["create_time"]))
+    found = mb_processes(rows, os.getpid())
+    if not found:
+        typer.echo("No mb processes are running.")
+        return
+    typer.echo(f"{'Process':<16} {'PID':<6} Started (local)")
+    for process in found:
+        typer.echo(f"{process.label:<16} {process.pid:<6} {process.started:%m-%d %H:%M}")
 
 
 def events(
@@ -559,6 +576,7 @@ def remote_run() -> None:
     from marketbot import remote as remote_commands
     from marketbot.telegram import Remote, TelegramAPI, bot_states, journals
 
+    set_title("mb Telegram remote")
     settings = Settings()
     if settings.telegram_bot_token is None:
         typer.echo("No TELEGRAM_BOT_TOKEN in .env.", err=True)
@@ -592,7 +610,7 @@ def _summary_time(text: str) -> tuple[int, int] | None:
 @remote_app.command("start")
 def remote_start() -> None:
     """Start the Telegram remote in the background (it outlives this terminal)."""
-    from marketbot.session import spawn_detached
+    from marketbot.session import background_python, spawn_detached
 
     if _remote_running():
         typer.echo("The remote is already running.")
@@ -601,7 +619,7 @@ def remote_start() -> None:
         typer.echo("No TELEGRAM_BOT_TOKEN in .env.", err=True)
         raise typer.Exit(2)
     pid = spawn_detached(
-        [sys.executable, "-m", "marketbot", "remote", "run"], REMOTE_PID, REMOTE_LOG
+        [background_python(), "-m", "marketbot", "remote", "run"], REMOTE_PID, REMOTE_LOG
     )
     typer.echo(f"Remote started; pid {pid}, log {REMOTE_LOG}.")
 

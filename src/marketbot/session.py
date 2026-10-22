@@ -6,11 +6,14 @@ those processes exit, the heartbeat stops, and the bot closes everything and exi
 own. The bot is detached so that it survives the session long enough to clean up.
 """
 
+import ctypes
 import os
 import subprocess
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -61,10 +64,85 @@ def bot_running(pid_file: Path) -> psutil.Process | None:
     return process if "marketbot" in cmdline and " bot" in cmdline else None
 
 
+# Naming the processes: `mb ps` and console window titles.
+
+
+@dataclass(frozen=True)
+class MbProcess:
+    pid: int
+    label: str
+    started: datetime
+
+
+def mb_args(cmdline: list[str]) -> list[str] | None:
+    """The `mb` arguments of a process command line, or None if it does not run marketbot."""
+    for i, word in enumerate(cmdline):
+        if word == "marketbot" and i > 0 and cmdline[i - 1] == "-m":
+            return cmdline[i + 1 :]
+        if Path(word).name.lower() in ("mb", "mb.exe"):
+            return cmdline[i + 1 :]
+    return None
+
+
+def mb_label(args: list[str]) -> str:
+    """What an `mb` process is, e.g. "live bot", "demo session", or "Telegram remote"."""
+    env, rest = "live", list(args)
+    if rest[:1] == ["--env"] and len(rest) > 1:
+        env, rest = rest[1], rest[2:]
+    command = " ".join(rest)
+    if command == "remote run":
+        return "Telegram remote"
+    if command == "bot":
+        return f"{env} bot"
+    if command == "session start":
+        return f"{env} session"
+    return "mb " + " ".join(args)
+
+
+def mb_processes(
+    rows: Iterable[tuple[int, int, list[str], float]], own_pid: int
+) -> list[MbProcess]:
+    """The running `mb` processes from (pid, parent pid, command line, start time) rows.
+
+    A launcher (`mb.exe`, the venv's python.exe) and the interpreter it starts share the
+    command line; only the outermost is listed. The calling process is left out.
+    """
+    found = {
+        pid: (parent, args, started)
+        for pid, parent, cmdline, started in rows
+        if (args := mb_args(cmdline)) is not None
+    }
+    own = {own_pid}
+    pid = own_pid
+    while pid in found and found.get(found[pid][0], (0, None))[1] == found[pid][1]:
+        pid = found[pid][0]
+        own.add(pid)
+    listed = [
+        MbProcess(pid, mb_label(args), datetime.fromtimestamp(started))
+        for pid, (parent, args, started) in found.items()
+        if pid not in own and found.get(parent, (0, None))[1] != args
+    ]
+    return sorted(listed, key=lambda process: process.started)
+
+
+def set_title(title: str) -> None:
+    """Name this process's console window, if it has one, so the owner can tell them apart."""
+    if os.name == "nt":
+        ctypes.windll.kernel32.SetConsoleTitleW(title)
+
+
+def background_python() -> str:
+    """The interpreter for background processes: pythonw.exe on Windows, so that no console
+    window appears (a detached python.exe launched through the venv gets a new console)."""
+    executable = Path(sys.executable)
+    windowless = executable.with_name("pythonw.exe")
+    return str(windowless) if os.name == "nt" and windowless.exists() else str(executable)
+
+
 def spawn_bot(env: str, pid_file: Path, log_file: Path) -> int:
     """Start `python -m marketbot --env <env> bot` detached from this process tree."""
     return spawn_detached(
-        [sys.executable, "-m", "marketbot", "--env", env, "bot"], pid_file, log_file
+        [background_python(), "-m", "marketbot", "--env", env, "bot"], pid_file, log_file
     )
 
 
@@ -80,7 +158,7 @@ def spawn_detached(command: list[str], pid_file: Path, log_file: Path) -> int:
     pid_file.parent.mkdir(parents=True, exist_ok=True)
     pid_file.unlink(missing_ok=True)
     intermediate = _popen_detached(
-        [sys.executable, "-m", "marketbot.session", str(pid_file), str(log_file), *command],
+        [background_python(), "-m", "marketbot.session", str(pid_file), str(log_file), *command],
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
