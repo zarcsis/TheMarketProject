@@ -32,6 +32,8 @@ IMPORTANT = {
     "delisting_announced",
     "flatten_error",
 }
+# Routine: printed, but do not end a --until-event wait.
+ROUTINE = {"stop_moved"}
 # Expected on Demo Trading: it lacks some new symbols, and the risk rules reject entries.
 NOISE = ("not a perpetual on this venue", "KeyError(", "'status': 'rejected'")
 
@@ -55,7 +57,7 @@ def main() -> None:
             text = str(event.payload)
             if event.kind in IMPORTANT and not any(noise in text for noise in NOISE):
                 print(f"{event.ts:%H:%M:%S} {event.kind} {text[:200]}", flush=True)
-                found = True
+                found = found or event.kind not in ROUTINE
         if found and args.until_event:
             return
         time.sleep(15)
