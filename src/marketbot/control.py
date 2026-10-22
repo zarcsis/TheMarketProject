@@ -7,6 +7,7 @@ it passes the same risk checks as the bot's own decisions. The only exception is
 
 import asyncio
 import os
+import sys
 import time
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -39,6 +40,7 @@ TIME_SYNC_INTERVAL_S = 1800
 def register(app: typer.Typer) -> None:
     app.add_typer(session_app, name="session")
     app.add_typer(strategies_app, name="strategies")
+    app.add_typer(remote_app, name="remote")
     commands = (
         bot,
         status,
@@ -529,3 +531,80 @@ def ask(
         typer.echo(f"Not proposable: {exc}", err=True)
         raise typer.Exit(2) from exc
     typer.echo(f"Proposal #{proposal} queued for the remote (expires in {ttl:g} minutes).")
+
+
+# The Telegram remote.
+
+remote_app = typer.Typer(no_args_is_help=True, help="The Telegram remote for the owner's phone.")
+REMOTE_PID = Path("state") / "remote.pid"
+REMOTE_LOG = Path("logs") / "remote.log"
+
+
+def _remote_running() -> psutil.Process | None:
+    try:
+        process = psutil.Process(int(REMOTE_PID.read_text()))
+        cmdline = " ".join(process.cmdline())
+    except (FileNotFoundError, ValueError, psutil.Error):
+        return None
+    return process if "marketbot" in cmdline and "remote run" in cmdline else None
+
+
+@remote_app.command("run")
+def remote_run() -> None:
+    """Run the Telegram remote in the foreground."""
+    from marketbot import remote as remote_commands
+    from marketbot.telegram import Remote, TelegramAPI, journals
+
+    settings = Settings()
+    if settings.telegram_bot_token is None:
+        typer.echo("No TELEGRAM_BOT_TOKEN in .env.", err=True)
+        raise typer.Exit(2)
+
+    async def run() -> None:
+        api = TelegramAPI(settings.telegram_bot_token.get_secret_value())
+        try:
+            await Remote(api, settings.telegram_chat_id, remote_commands.store(), journals()).run()
+        finally:
+            await api.close()
+
+    asyncio.run(run())
+
+
+@remote_app.command("start")
+def remote_start() -> None:
+    """Start the Telegram remote in the background (it outlives this terminal)."""
+    from marketbot.session import spawn_detached
+
+    if _remote_running():
+        typer.echo("The remote is already running.")
+        return
+    if Settings().telegram_bot_token is None:
+        typer.echo("No TELEGRAM_BOT_TOKEN in .env.", err=True)
+        raise typer.Exit(2)
+    pid = spawn_detached(
+        [sys.executable, "-m", "marketbot", "remote", "run"], REMOTE_PID, REMOTE_LOG
+    )
+    typer.echo(f"Remote started; pid {pid}, log {REMOTE_LOG}.")
+
+
+@remote_app.command("stop")
+def remote_stop() -> None:
+    """Stop the Telegram remote (sessions it started keep running until stopped)."""
+    process = _remote_running()
+    if process is None:
+        typer.echo("The remote is not running.")
+        return
+    process.terminate()
+    typer.echo("Remote stopped.")
+
+
+@remote_app.command("status")
+def remote_status() -> None:
+    """Show whether the remote runs and the latest proposals."""
+    from marketbot import remote as remote_commands
+
+    process = _remote_running()
+    typer.echo(f"Remote: {'running, pid ' + str(process.pid) if process else 'not running'}")
+    store = remote_commands.store()
+    for event in store.last_events(5):
+        typer.echo(f"  {event.ts:%H:%M} {event.kind} {event.payload}")

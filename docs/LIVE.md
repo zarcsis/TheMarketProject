@@ -60,6 +60,29 @@ uv run mb events --limit 30      # what happened
 - `uv run mb session stop` closes everything and stops the bot.
 - Closing terminal 1 has the same effect within about two minutes.
 
+## The Telegram remote: every decision from the phone
+
+The remote is a Telegram bot that runs on the bot's computer and answers only the owner's chat.
+
+**Setup:**
+
+1. In Telegram, ask @BotFather for `/newbot` and put the token into `.env` as `TELEGRAM_BOT_TOKEN`.
+2. Run `uv run mb remote start` and send `/start` to your bot. It replies with your chat id.
+3. Put the chat id into `.env` as `TELEGRAM_CHAT_ID`, then run `uv run mb remote stop` and `uv run mb remote start`.
+
+**What it does:**
+
+- **Notifications** from the live and demo bots: entries, closes, stop-outs, mode changes, errors, session loss, delisting announcements.
+- **Your commands:** any allowed `mb` command, typed as `/mb ...`. `/help` lists examples. For example: `/mb session start`, `/mb strategies set delisting-short-4h`, `/mb risk-scale 0.25`, `/mb auto on`, `/mb restart`, `/mb close SOLUSDT`, `/mb transfer 50 to-futures`.
+  - Only the `mb` program runs, never a shell.
+  - Key generation, research, and data downloads stay on the computer.
+- **Claude's proposals** (`mb ask`) arrive with Run and Decline buttons. They run only when you tap Run, and they expire.
+- **A second tap** is required for closing positions, stopping a session, and transfers.
+
+**Free text** goes to Claude in the Claude app, not to the remote.
+
+**A session started from the remote** lives until `/mb session stop`, or until the remote itself stops.
+
 ## Keeping multi-day positions between sessions (optional)
 
 `listing-short-busy-7d` holds a position for 7 days. The default session rule (a session ends, everything closes) would cut every trade short. To keep its positions open between sessions:
