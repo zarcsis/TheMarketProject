@@ -89,3 +89,36 @@ async def test_used_weight_headers_are_tracked() -> None:
     async with make_client(handler) as client:
         await client.public("GET", "/api/v3/test")
         assert client.used_weight == {"x-mbx-used-weight-1m": 12}
+
+
+async def test_clock_error_resyncs_and_retries_once() -> None:
+    requests: list[str] = []
+    server_time = 1_700_000_060_000  # the local clock is a minute behind the server
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request.url.path)
+        if request.url.path.endswith("/time"):
+            return httpx.Response(200, json={"serverTime": server_time})
+        timestamp = int(dict(request.url.params)["timestamp"])
+        if abs(timestamp - server_time) > 5000:
+            return httpx.Response(400, json={"code": -1021, "msg": "Timestamp outside"})
+        return httpx.Response(200, json={"ok": True})
+
+    async with make_client(
+        handler, api_key="key", signer=FixedSigner(), clock=lambda: 1_700_000_000.0
+    ) as client:
+        assert await client.signed("GET", "/fapi/v2/account") == {"ok": True}
+    assert requests == ["/fapi/v2/account", "/api/v3/time", "/fapi/v2/account"]
+
+
+async def test_other_errors_are_not_retried() -> None:
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        return httpx.Response(400, json={"code": -2019, "msg": "Margin is insufficient."})
+
+    async with make_client(handler, api_key="key", signer=FixedSigner()) as client:
+        with pytest.raises(BinanceAPIError):
+            await client.signed("POST", "/fapi/v1/order")
+    assert calls == ["/fapi/v1/order"]

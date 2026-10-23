@@ -125,8 +125,9 @@ def command_text(text: str) -> str | None:
     if name not in ALLOWED:
         return None
     env = ""
-    if rest[:1] == ["demo"]:
-        env, rest = "--env demo ", rest[1:]
+    if "demo" in (rest[:1] + rest[-1:]):  # "/status demo", "/session start demo"
+        env = "--env demo "
+        rest = rest[1:] if rest[0] == "demo" else rest[:-1]
     command = f"{name} {' '.join(rest)}" if rest else DEFAULTS.get(name, name)
     return f"mb {env}{command}"
 

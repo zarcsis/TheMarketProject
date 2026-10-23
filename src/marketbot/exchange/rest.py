@@ -11,6 +11,7 @@ import httpx
 from marketbot.exchange.signing import Signer
 
 WEIGHT_HEADER_PREFIXES = ("x-mbx-used-weight", "x-sapi-used")
+CLOCK_ERROR = -1021  # "Timestamp for this request is outside of the recvWindow"
 
 
 class BinanceAPIError(Exception):
@@ -70,6 +71,18 @@ class BinanceREST:
         return await self._send(method, path, _encode(params or {}), headers={})
 
     async def signed(self, method: str, path: str, params: Mapping[str, Any] | None = None) -> Any:
+        try:
+            return await self._signed_once(method, path, params)
+        except BinanceAPIError as exc:
+            if exc.code != CLOCK_ERROR:
+                raise
+        # The computer's clock jumped (a correction after a power cut or a sleep): measure the
+        # offset again and retry once. Binance rejects such a request before acting on it, so
+        # the retry cannot duplicate an order.
+        await self.sync_time()
+        return await self._signed_once(method, path, params)
+
+    async def _signed_once(self, method: str, path: str, params: Mapping[str, Any] | None) -> Any:
         if not self._api_key or self._signer is None:
             raise RuntimeError("Signed request requires an API key and a signer")
         query = _encode(

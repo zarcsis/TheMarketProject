@@ -1,7 +1,7 @@
 ## overview
 TheMarketProject remote
 
-Commands act on the live bot. For Demo Trading put "demo" right after the command: /status demo, /risk_scale demo 0.5.
+Commands act on the live bot. For Demo Trading add "demo" right after the command or at the end: /status demo, /session start demo, /risk_scale demo 0.5.
 
 Read (safe):
 /status - equity, window, risk, positions
