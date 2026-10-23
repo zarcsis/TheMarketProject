@@ -77,6 +77,7 @@ The remote is a Telegram bot that runs on the bot's computer and answers only th
 - **Notifications** from the live and demo bots: entries, closes, stop-outs, mode changes, errors, session loss, delisting announcements.
 - **Your commands:** every allowed `mb` command is a Telegram command of its own: `/status`, `/risk_scale 0.3`, `/close SOLUSDT`, `/session start`.
   - Typing `/` opens Telegram's command menu with all of them and a short description.
+  - A command sent alone opens a button menu: `/session` asks Live or Demo, then Start or Stop; `/close` lists the open positions; `/strategies` shows a tick list of presets and offers a restart after Save. `/risk_scale`, `/auto`, `/on_stop`, `/report`, and `/transfer` offer their usual values. With its arguments a command runs at once.
   - Telegram allows no hyphens in commands, so `risk-scale` and `on-stop` are `/risk_scale` and `/on_stop`; typed with a hyphen they work too.
   - Commands act on the live bot; put `demo` right after the command for Demo Trading: `/status demo`.
   - `/help` lists every command by group; `/help <command>` explains one (`/help propose`).

@@ -1,7 +1,7 @@
 ## overview
 TheMarketProject remote
 
-Commands act on the live bot. For Demo Trading add "demo" right after the command or at the end: /status demo, /session start demo, /risk_scale demo 0.5.
+A command sent alone opens a menu: /session asks which bot, then start or stop; /close lists the open positions; /strategies lets you tick presets. With its arguments a command runs at once; "demo" right after it or at the end picks Demo Trading (/session start demo), otherwise it acts on the live bot.
 
 Read (safe):
 /status - equity, window, risk, positions

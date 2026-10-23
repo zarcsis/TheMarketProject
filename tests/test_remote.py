@@ -96,3 +96,38 @@ def test_commands_are_shown_as_typed() -> None:
     assert parse("mb --env demo risk-scale 0.3").typed() == "/risk_scale demo 0.3"
     assert parse("mb close SOLUSDT").typed() == "/close SOLUSDT"
     assert parse("mb session stop").typed() == "/session stop"
+
+
+def test_menus_check_their_answers() -> None:
+    from marketbot import remote_menus as menus
+
+    assert menus.next_step("session", [], {}) is menus.ENV
+    assert menus.next_step("session", ["demo"], {}).options == (
+        ("Start", "start"),
+        ("Stop", "stop"),
+    )
+    assert menus.next_step("session", ["demo", "stop"], {}) is None
+    assert menus.command("session", ["demo", "stop"]) == "mb --env demo session stop"
+    assert menus.command("report", ["live", "72"]) == "mb report --hours 72"
+    assert menus.command("transfer", ["to-spot", "25"]) == "mb transfer 25 to-spot"
+    close = menus.next_step("close", ["live"], {"live": ["SOLUSDT"]})
+    assert close.options == (("SOLUSDT", "SOLUSDT"),)
+    for bad in (["live", "SOLUSDT; rm"], ["paper"], ["live", "start", "x"]):
+        with pytest.raises(menus.MenuError):
+            menus.next_step("close" if len(bad) == 2 else "session", bad, {"live": ["SOLUSDT"]})
+    for name in menus.STEPS:  # every menu command is allowed, and its data fits Telegram
+        assert name in remote.ALLOWED
+        menus.encode(name, ["demo", "x" * 20])
+
+
+def test_strategy_chooser_masks() -> None:
+    from marketbot import remote_menus as menus
+
+    presets = ["a", "b", "c"]
+    assert menus.mask_of("a,c", presets) == 0b101
+    assert menus.chosen(0b101, presets) == ["a", "c"]
+    assert menus.strategy_answer("s:demo:5:1", presets) == ("demo", 0b111, False)
+    assert menus.strategy_answer("s:live:5:ok", presets) == ("live", 0b101, True)
+    for bad in ("s:paper:5:1", "s:demo:ff:1", "s:demo:5:9", "s:demo:zz:1"):
+        with pytest.raises(menus.MenuError):
+            menus.strategy_answer(bad, presets)

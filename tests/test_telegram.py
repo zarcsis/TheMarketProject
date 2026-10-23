@@ -7,7 +7,7 @@ import pytest
 
 from marketbot import remote
 from marketbot.state.store import Store
-from marketbot.telegram import Remote, TelegramAPI, TelegramError
+from marketbot.telegram import BotState, Remote, TelegramAPI, TelegramError
 
 pytestmark = pytest.mark.anyio
 OWNER = 111
@@ -18,12 +18,15 @@ TOKEN = "123456:SECRET-token"
 class FakeTelegram:
     def __init__(self) -> None:
         self.sent: list[dict] = []
+        self.edited: list[dict] = []
         self.calls: list[str] = []
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         method = request.url.path.rsplit("/", 1)[-1]
         self.calls.append(method)
         body = json.loads(request.content or b"{}")
+        if method == "editMessageText":
+            self.edited.append(body)
         if method == "sendMessage":
             self.sent.append(body)
             return httpx.Response(200, json={"ok": True, "result": {"message_id": len(self.sent)}})
@@ -262,20 +265,74 @@ async def test_monday_summary_adds_the_out_of_time_check(rig: Rig) -> None:
 async def test_plain_commands_run_like_mb_commands(rig: Rig) -> None:
     await rig.message("/status demo")
     await rig.message("/report --hours 48")
-    await rig.message("/strategies@SomeBot")
+    await rig.message("/strategies@SomeBot demo show")
     await rig.message("/risk_scale 0.3")
     assert rig.ran == [
         "mb --env demo status",
         "mb report --hours 48",
-        "mb strategies show",
+        "mb --env demo strategies show",
         "mb risk-scale 0.3",
     ]
 
 
 async def test_plain_dangerous_commands_still_ask_twice(rig: Rig) -> None:
+    await rig.message("/flatten demo")
+    assert rig.ran == []
+    assert rig.telegram.texts()[-1].startswith("Confirm: /flatten demo")
+
+
+def buttons_of(body: dict) -> list[str]:
+    return [b["callback_data"] for row in body["reply_markup"]["inline_keyboard"] for b in row]
+
+
+async def test_a_bare_command_opens_its_menu(rig: Rig) -> None:
+    await rig.message("/session")
+    assert rig.telegram.texts()[-1].endswith("Which bot?")
+    assert rig.telegram.buttons() == ["m:session:live", "m:session:demo"]
+    await rig.tap("m:session:demo")
+    assert rig.telegram.edited[-1]["text"].endswith("Start or stop the session?")
+    assert buttons_of(rig.telegram.edited[-1]) == ["m:session:demo:start", "m:session:demo:stop"]
+    await rig.tap("m:session:demo:start")
+    assert rig.ran == ["mb --env demo session start"]
+
+
+async def test_a_menu_ending_in_a_dangerous_command_still_asks_twice(rig: Rig) -> None:
     await rig.message("/flatten")
+    await rig.tap("m:flatten:live")
     assert rig.ran == []
     assert rig.telegram.texts()[-1].startswith("Confirm: /flatten")
+
+
+async def test_menu_answers_are_checked(rig: Rig) -> None:
+    await rig.tap("m:session:demo:explode")
+    await rig.tap("m:keygen:live")
+    assert rig.ran == []
+    assert all(e["text"].startswith("Menu closed") for e in rig.telegram.edited[-2:])
+
+
+async def test_close_menu_lists_open_positions(rig: Rig) -> None:
+    rig.remote.states = lambda: [BotState("demo", True, True, ["SOLUSDT"])]
+    await rig.message("/close demo")
+    assert rig.telegram.buttons() == ["m:close:demo:SOLUSDT"]
+    await rig.tap("m:close:demo:SOLUSDT")
+    assert rig.telegram.texts()[-1].startswith("Confirm: /close demo SOLUSDT")
+    await rig.tap("m:close:demo:ETHUSDT")  # not an open position
+    assert rig.telegram.edited[-1]["text"].startswith("Menu closed")
+
+
+async def test_strategy_chooser_toggles_and_saves(rig: Rig) -> None:
+    from marketbot.strategy import presets
+
+    names = presets.names()
+    await rig.message("/strategies demo")
+    await rig.tap("m:strategies:demo:choose")
+    assert len(buttons_of(rig.telegram.edited[-1])) == len(names) + 1
+    first = names.index("delisting-short-4h")
+    await rig.tap(f"s:demo:0:{first}")
+    assert f"s:demo:{1 << first:x}:ok" in buttons_of(rig.telegram.edited[-1])
+    await rig.tap(f"s:demo:{1 << first:x}:ok")
+    assert rig.ran == ["mb --env demo strategies set delisting-short-4h"]
+    assert rig.telegram.buttons() == ["m:restart:demo", "x"]
 
 
 async def test_help_explains_every_command(rig: Rig) -> None:

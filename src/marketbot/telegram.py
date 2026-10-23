@@ -24,7 +24,7 @@ from typing import Any
 
 import httpx
 
-from marketbot import remote
+from marketbot import remote, remote_menus
 from marketbot.config import log_dir, state_dir
 from marketbot.session import background_python, bot_running, spawn_detached
 from marketbot.state.store import Store
@@ -124,6 +124,22 @@ class TelegramAPI:
 
     async def answer(self, callback_id: str, text: str = "") -> None:
         await self.call("answerCallbackQuery", callback_query_id=callback_id, text=text)
+
+    async def edit(
+        self,
+        chat_id: int,
+        message_id: int,
+        text: str,
+        buttons: list[list[dict[str, str]]] | None = None,
+    ) -> None:
+        """Replace a message's text and buttons (a menu moving to its next question)."""
+        await self.call(
+            "editMessageText",
+            chat_id=chat_id,
+            message_id=message_id,
+            text=text,
+            reply_markup={"inline_keyboard": buttons or []},
+        )
 
     async def clear_buttons(self, chat_id: int, message_id: int) -> None:
         await self.call(
@@ -282,8 +298,17 @@ class Remote:
         if chat != self.chat_id:
             return  # strangers get no answer at all
         first, _, rest = text.partition(" ")
+        name = first.split("@")[0].lstrip("/").lower().replace("_", "-")
         if first.split("@")[0] in ("/start", "/help"):
             await self.api.send(chat, remote.help_text(rest))
+        elif name in remote_menus.STEPS and rest.strip() in ("", "live", "demo"):
+            # A bare command opens its menu; "/session demo" starts it with the bot chosen.
+            choices = [rest.strip()] if rest.strip() else []
+            if choices and remote_menus.STEPS[name][0] is not remote_menus.ENV:
+                choices = []
+            await self._menu(name, choices, None)
+        elif name == "propose" and not rest.strip():
+            await self.api.send(chat, remote.help_text("propose"))
         elif (command := remote.command_text(text)) is not None:
             await self._handle_command(command)
         else:
@@ -331,8 +356,18 @@ class Remote:
         if self.chat_id is None or chat != self.chat_id:
             return
         await self.api.answer(callback["id"])
-        action, _, key = str(callback.get("data", "")).partition(":")
+        data = str(callback.get("data", ""))
+        action, _, key = data.partition(":")
+        if action == "m":
+            name, choices = remote_menus.decode(data)
+            await self._menu(name, choices, message["message_id"])
+            return
+        if action == "s":
+            await self._strategy_tap(data, message["message_id"])
+            return
         await self.api.clear_buttons(chat, message["message_id"])
+        if action == "x":
+            return  # "Later" and similar: just close the menu
         if action in ("confirm", "cancel"):
             pending = self.confirmations.pop(key, None)
             if pending is None or self.clock() >= pending.expires:
@@ -348,6 +383,84 @@ class Remote:
             await self._handle_proposal(int(key), action)
         if action == "session" and key in ("live", "demo"):
             await self._execute(remote.parse(f"--env {key} session start"), None)
+
+    # Menus.
+
+    def _positions(self) -> dict[str, list[str]]:
+        return {state.env: state.positions for state in self.states()}
+
+    async def _show(self, text: str, buttons: list[list[dict[str, str]]], message_id) -> None:
+        assert self.chat_id is not None
+        if message_id is None:
+            await self.api.send(self.chat_id, text, buttons or None)
+        else:
+            await self.api.edit(self.chat_id, message_id, text, buttons)
+
+    async def _menu(self, name: str, choices: list[str], message_id: int | None) -> None:
+        """Ask a menu's next question, or run the command once every answer is in."""
+        assert self.chat_id is not None
+        try:
+            step = remote_menus.next_step(name, choices, self._positions())
+        except remote_menus.MenuError as exc:
+            await self._show(f"Menu closed: {exc}.", [], message_id)
+            return
+        if name == "strategies" and choices[1:] == ["choose"]:
+            await self._strategy_chooser(choices[0], message_id)
+            return
+        if step is None:
+            command = remote_menus.command(name, choices)
+            await self._show(f"→ {remote.parse(command).typed()}", [], message_id)
+            await self._handle_command(command)
+            return
+        if not step.options:
+            await self._show(f"No open positions on {choices[0]}.", [], message_id)
+            return
+        title = remote.telegram_name(name)
+        picked = " ".join(choices)
+        buttons = [
+            [button(label, remote_menus.encode(name, [*choices, value]))]
+            for label, value in step.options
+        ]
+        header = f"/{title} {picked}".rstrip()
+        await self._show(f"{header}\n{step.question}", buttons, message_id)
+
+    def _presets(self) -> list[str]:
+        from marketbot.strategy import presets
+
+        return presets.names()
+
+    async def _strategy_chooser(self, env: str, message_id: int | None, mask: int | None = None):
+        presets = self._presets()
+        if mask is None:
+            journal = self.journals.get(env)
+            configured = (Store(journal).get("strategies") or "") if journal else ""
+            mask = remote_menus.mask_of(configured, presets)
+        rows = remote_menus.strategy_buttons(env, mask, presets)
+        buttons = [[button(label, data) for label, data in row] for row in rows]
+        text = f"{env} strategies: tap to switch one on or off, then Save."
+        await self._show(text, buttons, message_id)
+
+    async def _strategy_tap(self, data: str, message_id: int) -> None:
+        assert self.chat_id is not None
+        presets = self._presets()
+        try:
+            env, mask, save = remote_menus.strategy_answer(data, presets)
+        except remote_menus.MenuError as exc:
+            await self._show(f"Menu closed: {exc}.", [], message_id)
+            return
+        if not save:
+            await self._strategy_chooser(env, message_id, mask)
+            return
+        names = ",".join(remote_menus.chosen(mask, presets))
+        prefix = "--env demo " if env == "demo" else ""
+        command = f"mb {prefix}strategies set {names or chr(39) * 2}"
+        await self._show(f"→ {remote.parse(command).typed()}", [], message_id)
+        await self._handle_command(command)
+        await self.api.send(
+            self.chat_id,
+            f"The {env} bot uses the new set after a restart. Restart it now?",
+            [[button("Restart now", f"m:restart:{env}"), button("Later", "x")]],
+        )
 
     async def _handle_proposal(self, proposal_id: int, action: str) -> None:
         assert self.chat_id is not None
