@@ -36,7 +36,7 @@ async def fetch_all(client: httpx.AsyncClient) -> list[dict[str, Any]]:
     for protocol in await fetch_protocol_ids(client):
         try:
             documents.append({"id": protocol, **await fetch_protocol(client, protocol)})
-        except (httpx.HTTPError, ValueError):
+        except httpx.HTTPError, ValueError:
             continue  # a missing or malformed file: skip the protocol
         await asyncio.sleep(0.2)  # be polite to a public bucket
     return documents

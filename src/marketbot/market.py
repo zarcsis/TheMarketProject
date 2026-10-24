@@ -48,13 +48,13 @@ async def brief(now: datetime | None = None) -> str:
             fear_greed = await _get(client, FEAR_GREED)
             fg = fear_greed["data"][0]
             fear_line = f"Fear & Greed: {fg['value']} ({fg['value_classification']})"
-        except (httpx.HTTPError, KeyError, ValueError):
+        except httpx.HTTPError, KeyError, ValueError:
             fear_line = "Fear & Greed: unavailable"
         try:
             delistings = await announcements.fetch_catalog(
                 client, announcements.DELISTINGS, max_pages=1
             )
-        except (httpx.HTTPError, KeyError, ValueError):
+        except httpx.HTTPError, KeyError, ValueError:
             delistings = pl.DataFrame()
 
     excluded = non_crypto_symbols(info)

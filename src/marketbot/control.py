@@ -588,7 +588,7 @@ def _remote_running() -> psutil.Process | None:
     try:
         process = psutil.Process(int(REMOTE_PID.read_text()))
         cmdline = " ".join(process.cmdline())
-    except (FileNotFoundError, ValueError, psutil.Error):
+    except FileNotFoundError, ValueError, psutil.Error:
         return None
     return process if "marketbot" in cmdline and "remote run" in cmdline else None
 

@@ -54,7 +54,7 @@ class Settings(BaseSettings):
             self.binance_private_key_path is not None or self.binance_api_secret is not None
         )
 
-    def for_env(self, env: Env) -> "Settings":
+    def for_env(self, env: Env) -> Settings:
         """Settings whose credentials and hosts point at the given environment."""
         if env == "live":
             return self

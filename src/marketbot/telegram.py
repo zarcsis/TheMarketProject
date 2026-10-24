@@ -201,7 +201,7 @@ class Remote:
     journals: dict[str, Path]  # env -> bot.db
     runner: Runner = run_mb
     clock: Callable[[], datetime] = lambda: datetime.now(UTC)
-    states: Callable[[], list["BotState"]] = lambda: []
+    states: Callable[[], list[BotState]] = lambda: []
     healthcheck_url: str | None = None
     summary_time: tuple[int, int] | None = (9, 0)  # local time of the daily summary
     offset: int = 0

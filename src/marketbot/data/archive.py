@@ -81,20 +81,20 @@ class Month:
     month: int
 
     @classmethod
-    def parse(cls, text: str) -> "Month":
+    def parse(cls, text: str) -> Month:
         match = re.fullmatch(r"(\d{4})-(\d{2})", text)
         if not match or not 1 <= int(match[2]) <= 12:
             raise ValueError(f"Expected YYYY-MM, got {text!r}")
         return cls(int(match[1]), int(match[2]))
 
     @classmethod
-    def of(cls, day: date) -> "Month":
+    def of(cls, day: date) -> Month:
         return cls(day.year, day.month)
 
-    def next(self) -> "Month":
+    def next(self) -> Month:
         return Month(self.year + self.month // 12, self.month % 12 + 1)
 
-    def previous(self) -> "Month":
+    def previous(self) -> Month:
         return Month(self.year - (self.month == 1), (self.month - 2) % 12 + 1)
 
     def __str__(self) -> str:

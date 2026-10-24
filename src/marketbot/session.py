@@ -54,7 +54,7 @@ def session_ancestors() -> list[psutil.Process]:
 def bot_running(pid_file: Path) -> psutil.Process | None:
     try:
         pid = int(pid_file.read_text())
-    except (FileNotFoundError, ValueError):
+    except FileNotFoundError, ValueError:
         return None
     try:
         process = psutil.Process(pid)

@@ -366,7 +366,7 @@ flowchart LR
 
 | Area | Choice |
 |---|---|
-| Language and packaging | Python 3.12+, `uv`, `pyproject.toml` |
+| Language and packaging | Python 3.15.1, `uv`, `pyproject.toml` |
 | Exchange access | Own thin async client: `httpx` for REST, `websockets` for streams. It signs with Ed25519 or HMAC. There is no abstraction layer between the risk manager and the exchange, which gives full control over Binance-specific endpoints and over order types that change over time. |
 | Data | `polars`; indicators implemented in-house (EMA, ATR, RSI, VWAP, Bollinger, ADX, Donchian) to avoid TA-Lib build issues on Windows |
 | Storage | SQLite (state, orders, journal); Parquet (market data, research) |

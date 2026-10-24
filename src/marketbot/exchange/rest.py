@@ -50,7 +50,7 @@ class BinanceREST:
         self.time_offset_ms = 0
         self.used_weight: dict[str, int] = {}
 
-    async def __aenter__(self) -> "BinanceREST":
+    async def __aenter__(self) -> BinanceREST:
         return self
 
     async def __aexit__(self, *exc_info: object) -> None:

@@ -17,7 +17,7 @@ class Binance:
     @classmethod
     def from_settings(
         cls, settings: Settings, transport: httpx.AsyncBaseTransport | None = None
-    ) -> "Binance":
+    ) -> Binance:
         api_key = settings.binance_api_key.get_secret_value() if settings.binance_api_key else None
         _ensure_not_private_key(api_key, settings.binance_private_key_path)
         signer = make_signer(settings)
@@ -37,7 +37,7 @@ class Binance:
             host(settings.futures_base_url, "/fapi/v1/time"),
         )
 
-    async def __aenter__(self) -> "Binance":
+    async def __aenter__(self) -> Binance:
         return self
 
     async def __aexit__(self, *exc_info: object) -> None:

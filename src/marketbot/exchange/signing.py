@@ -29,7 +29,7 @@ class Ed25519Signer:
         self._key = private_key
 
     @classmethod
-    def from_pem_file(cls, path: Path, passphrase: str | None = None) -> "Ed25519Signer":
+    def from_pem_file(cls, path: Path, passphrase: str | None = None) -> Ed25519Signer:
         key = serialization.load_pem_private_key(
             path.read_bytes(), password=passphrase.encode() if passphrase else None
         )

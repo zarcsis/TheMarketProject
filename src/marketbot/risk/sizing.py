@@ -54,7 +54,7 @@ class Decision:
     leverage: int = 0
 
     @classmethod
-    def reject(cls, *reasons: str) -> "Decision":
+    def reject(cls, *reasons: str) -> Decision:
         return cls(False, reasons)
 
 
