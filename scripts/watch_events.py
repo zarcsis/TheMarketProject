@@ -46,6 +46,13 @@ NOISE = ("not a perpetual on this venue", "KeyError(", "'status': 'rejected'")
 STALE = timedelta(minutes=10)
 
 
+def routine(kind: str, payload: dict) -> bool:
+    """A window rollover journals mode_changed even when the mode stays the same."""
+    if kind == "mode_changed":
+        return payload.get("previous") == payload.get("current")
+    return kind in ROUTINE
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("dbs", nargs="*", default=["state/live/bot.db", "state/demo/bot.db"])
@@ -67,7 +74,7 @@ def main() -> None:
                 text = str(event.payload)
                 if event.kind in IMPORTANT and not any(noise in text for noise in NOISE):
                     print(f"{env} {event.ts:%H:%M:%S} {event.kind} {text[:200]}", flush=True)
-                    found = found or event.kind not in ROUTINE
+                    found = found or not routine(event.kind, event.payload)
             status = store.get("status") or {}
             updated = status.get("time")
             age = datetime.now(UTC) - datetime.fromisoformat(updated) if updated else None
