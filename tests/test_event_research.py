@@ -288,3 +288,45 @@ def test_funding_interval_switches_are_found() -> None:
     [row] = switches(funding, times[0]).iter_rows(named=True)
     assert (row["switched"], row["previous"], row["interval"]) == (times[2], 4, 1)
     assert row["rate_8h"] == pytest.approx(-0.01)
+
+
+def test_tradfi_sessions_follow_new_york_time_and_holidays() -> None:
+    from marketbot.research.tradfi import nyse_session, trading_days
+
+    assert nyse_session(date(2026, 3, 6))[0] == datetime(2026, 3, 6, 14, 30, tzinfo=UTC)
+    assert nyse_session(date(2026, 3, 9))[0] == datetime(2026, 3, 9, 13, 30, tzinfo=UTC)
+    assert nyse_session(date(2026, 10, 30))[1] == datetime(2026, 10, 30, 20, tzinfo=UTC)
+    assert nyse_session(date(2026, 11, 2))[1] == datetime(2026, 11, 2, 21, tzinfo=UTC)
+    # Labor Day and the weekend before it.
+    assert trading_days(date(2026, 9, 4), date(2026, 9, 8)) == [date(2026, 9, 4), date(2026, 9, 8)]
+
+
+def test_tradfi_panel_measures_the_weekend_move_and_the_move_after_the_open() -> None:
+    from marketbot.research.tradfi import panel, trading_days
+
+    friday_close = datetime(2026, 10, 23, 20, tzinfo=UTC)
+    monday_open = datetime(2026, 10, 26, 13, 30, tzinfo=UTC)
+    starts = [
+        datetime(2026, 10, 23, 13, 30, tzinfo=UTC) + timedelta(minutes=5 * i) for i in range(960)
+    ]
+
+    def close(start: datetime) -> float:
+        end = start + timedelta(minutes=5)
+        return 100.0 if end <= friday_close else 110.0 if end <= monday_open else 104.5
+
+    bars = pl.DataFrame(
+        {
+            "symbol": ["AAPLUSDT"] * len(starts),
+            "open_time": starts,
+            "close": [close(start) for start in starts],
+            "quote_volume": [1e5] * len(starts),
+        }
+    )
+    listed = {"AAPLUSDT": datetime(2026, 10, 1, tzinfo=UTC)}
+    [row] = panel(bars, listed, trading_days(date(2026, 10, 23), date(2026, 10, 26))).iter_rows(
+        named=True
+    )
+    assert row["day"] == date(2026, 10, 26) and row["weekend"]
+    assert row["off"] == pytest.approx(0.10)
+    assert row["after_30m"] == pytest.approx(104.5 / 110 - 1)
+    assert row["previous_volume"] == pytest.approx(78 * 1e5)  # Friday's 6.5-hour session

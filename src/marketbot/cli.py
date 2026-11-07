@@ -573,6 +573,32 @@ def research_reversal(
     typer.echo(f"{weeks.height} weekly cohorts; report written to {out}")
 
 
+@research_app.command("tradfi")
+def research_tradfi(
+    start: Annotated[str, typer.Option(help="First trading day.")] = "2026-01-02",
+    end: Annotated[str, typer.Option(help="Last trading day; its month must be archived.")] = (
+        "2026-10-30"
+    ),
+    out: Annotated[Path, typer.Option(help="Report to write.")] = Path(
+        "research/results/18-tradfi.md"
+    ),
+    root: Annotated[Path, typer.Option(help="Storage directory.")] = archive.DEFAULT_ROOT,
+) -> None:
+    """Run research 18 (US-stock perpetuals: the off-hours move and the move after the open)."""
+    from marketbot.research import tradfi
+
+    info = httpx.get("https://fapi.binance.com/fapi/v1/exchangeInfo", timeout=30).json()
+    listed = tradfi.us_stock_perpetuals(info)
+    last = date.fromisoformat(end)
+    stats = asyncio.run(tradfi.download(root, listed, last))
+    typer.echo(f"5-minute klines: downloaded {stats.downloaded}, cached {stats.cached}")
+    frame, text = tradfi.run(root, listed, date.fromisoformat(start), last)
+    frame.write_parquet(Path("data/research/18-tradfi.parquet"))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text, encoding="utf-8")
+    typer.echo(f"{frame.height} perpetual-days; report written to {out}")
+
+
 @research_app.command("exchanges")
 def research_exchanges(
     since: Annotated[str, typer.Option(help="First announcement day.")] = "2024-10-01",

@@ -1,6 +1,6 @@
 # TheMarketProject: Project Plan
 
-Status: v0.7, 2026-10-23. Phases 0-3 are complete. Live trading (Phase 5) runs `delisting-short-4h` at risk scale 0.3, the smallest scale whose entries clear Binance's 5 USDT minimum at this account size. The Demo Trading forward test (Phase 4) runs five event strategies, two of them new in research 09 and 14 (`airdrop-short-7d`, `exchange-delisting-short-7d`). Research 01-17 is done; an out-of-time check (`mb forward`) tracks every strategy on new events and reaches the owner's Telegram every Monday. Goal revised: see section 1.
+Status: v0.7, 2026-10-23. Phases 0-3 are complete. Live trading (Phase 5) runs `delisting-short-4h` at risk scale 0.3, the smallest scale whose entries clear Binance's 5 USDT minimum at this account size. The Demo Trading forward test (Phase 4) runs five event strategies, two of them new in research 09 and 14 (`airdrop-short-7d`, `exchange-delisting-short-7d`). Research 01-18 is done; an out-of-time check (`mb forward`) tracks every strategy on new events and reaches the owner's Telegram every Monday. Goal revised: see section 1.
 
 ## 1. Goal and framing
 
@@ -531,6 +531,7 @@ TheMarketProject/
 - [15](../research/15-distress.md): shorting Monitoring Tag tokens for weeks loses on average despite most of them lagging: rare, huge squeezes dominate. The edge stays in research 07's first day.
 - [16](../research/16-squeeze.md): after Binance shortens a funding interval, buying crowded shorts has a positive mean that rests on a handful of giant squeezes; no strategy. Shorting into crowded shorts loses, and the event shorts almost never do it.
 - [17](../research/17-kucoin.md): a replication of research 14 on KuCoin delistings. The drift is there without a stop (+11% to +13.5% in the second year), but with a 30% stop the 29 events average only +1.8%. The strategy stays on Bybit and OKX triggers.
+- [18](../research/18-tradfi.md): Binance's perpetuals on US stocks, now most of its new listings, do not reverse their off-hours move after the NYSE open by more than the fees: weeknight rises fade +0.5% in 30 minutes, t 0.7 with day clusters; no strategy.
 
 **Promoted to the forward test:** `delisting-short-4h`, `monitoring-short-1d`, and `listing-short-busy-7d`; since research 09 and 14, also `airdrop-short-7d` and `exchange-delisting-short-7d` (Demo Trading only).
 
