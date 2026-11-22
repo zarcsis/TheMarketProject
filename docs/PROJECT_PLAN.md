@@ -1,6 +1,6 @@
 # TheMarketProject: Project Plan
 
-Status: v0.7, 2026-10-23. Phases 0-3 are complete. Live trading (Phase 5) runs `delisting-short-4h` at risk scale 0.3, the smallest scale whose entries clear Binance's 5 USDT minimum at this account size. The Demo Trading forward test (Phase 4) runs five event strategies, two of them new in research 09 and 14 (`airdrop-short-7d`, `exchange-delisting-short-7d`). Research 01-18 is done; an out-of-time check (`mb forward`) tracks every strategy on new events and reaches the owner's Telegram every Monday. Goal revised: see section 1.
+Status: v0.8, 2026-11-22. Phases 0-3 are complete. Live trading (Phase 5) runs `delisting-short-4h` and, since 2026-11-22, `monitoring-short-1d` at risk scale 0.3, the smallest scale whose entries clear Binance's 5 USDT minimum at this account size. The Demo Trading forward test (Phase 4) runs five event strategies, two of them new in research 09 and 14 (`airdrop-short-7d`, `exchange-delisting-short-7d`). Research 01-18 is done; an out-of-time check (`mb forward`) tracks every strategy on new events and reaches the owner's Telegram every Monday. Goal revised: see section 1.
 
 ## 1. Goal and framing
 
