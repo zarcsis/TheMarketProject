@@ -32,6 +32,12 @@ from marketbot.risk.sizing import Decision, TradeIntent
 
 EXCHANGE_ERRORS = (BinanceAPIError, httpx.HTTPError, RuntimeError)
 
+
+def describe(exc: BaseException) -> str:
+    """The exception's type and message: a timeout's message alone is empty."""
+    return f"{type(exc).__name__}: {exc}"
+
+
 Journal = Callable[..., Any]
 
 
@@ -106,7 +112,7 @@ class Executor:
                 intent.symbol, intent.side, STOP_MARKET, stop_price, qty=fill.qty
             )
         except Exception as exc:
-            self._journal("stop_failed", symbol=intent.symbol, error=str(exc))
+            self._journal("stop_failed", symbol=intent.symbol, error=describe(exc))
             await self.close(
                 intent.symbol, intent.side, fill.qty, reason="stop could not be placed"
             )
@@ -121,7 +127,7 @@ class Executor:
                 )
             except EXCHANGE_ERRORS as exc:
                 # The stop protects the position; a missing target only costs upside.
-                self._journal("target_failed", symbol=intent.symbol, error=str(exc))
+                self._journal("target_failed", symbol=intent.symbol, error=describe(exc))
 
         return ManagedPosition(
             symbol=intent.symbol,
@@ -155,7 +161,7 @@ class Executor:
                 await self.exchange.cancel_conditional(managed.symbol, managed.stop_algo_id)
             except EXCHANGE_ERRORS as exc:
                 # Two stops are harmless; the reconciler cancels the extra one.
-                self._journal("cancel_failed", symbol=managed.symbol, error=str(exc))
+                self._journal("cancel_failed", symbol=managed.symbol, error=describe(exc))
         self._journal("stop_moved", symbol=managed.symbol, old=managed.stop, new=moved.stop)
         return moved
 
@@ -171,7 +177,7 @@ class Executor:
             try:
                 account = await self.exchange.account()
             except EXCHANGE_ERRORS as exc:
-                self._journal("flatten_error", stage="account", error=str(exc))
+                self._journal("flatten_error", stage="account", error=describe(exc))
                 continue
             symbols = (
                 set(account.positions)
@@ -184,12 +190,12 @@ class Executor:
                 try:
                     await self.close(position.symbol, position.side, position.qty, reason=reason)
                 except EXCHANGE_ERRORS as exc:
-                    self._journal("flatten_error", symbol=position.symbol, error=str(exc))
+                    self._journal("flatten_error", symbol=position.symbol, error=describe(exc))
             for symbol in symbols:
                 try:
                     await self.exchange.cancel_all(symbol)
                 except EXCHANGE_ERRORS as exc:
-                    self._journal("flatten_error", symbol=symbol, error=str(exc))
+                    self._journal("flatten_error", symbol=symbol, error=describe(exc))
         try:
             account = await self.exchange.account()
         except EXCHANGE_ERRORS:

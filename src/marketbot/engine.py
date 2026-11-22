@@ -21,7 +21,13 @@ from typing import Any
 
 from marketbot.domain import Side
 from marketbot.exchange.futures import AccountState, Exchange, Position
-from marketbot.execution.executor import EXCHANGE_ERRORS, EntryFailed, Executor, ManagedPosition
+from marketbot.execution.executor import (
+    EXCHANGE_ERRORS,
+    EntryFailed,
+    Executor,
+    ManagedPosition,
+    describe,
+)
 from marketbot.risk.config import RiskConfig
 from marketbot.risk.project import ProjectState, check_equity, close_window, risk_multiplier
 from marketbot.risk.sizing import (
@@ -204,13 +210,13 @@ class Engine:
             account = await self.exchange.account()
         except EXCHANGE_ERRORS as exc:
             stale = self.last_ok is None or now - self.last_ok > STALE_DATA
-            self.store.log("account_error", error=str(exc), stale=stale)
-            self._write_status(now, error=f"account unavailable: {exc}")
+            self.store.log("account_error", error=describe(exc), stale=stale)
+            self._write_status(now, error=f"account unavailable: {describe(exc)}")
             self.failing_since = self.failing_since or now
             if not self.access_lost and now - self.failing_since >= STALE_DATA:
                 # One alert per outage (the remote forwards it), not one per tick.
                 self.access_lost = True
-                self.store.log("account_access_lost", error=str(exc), since=self.failing_since)
+                self.store.log("account_access_lost", error=describe(exc), since=self.failing_since)
             return None
         if self.access_lost:
             self.store.log("account_access_restored", lost_since=self.failing_since)
@@ -288,7 +294,7 @@ class Engine:
                     moved = await self.executor.move_stop(position, change.stop, info)
                     self.store.put_position(moved.symbol, moved)
             except EXCHANGE_ERRORS as exc:
-                self.store.log("protect_error", symbol=position.symbol, error=str(exc))
+                self.store.log("protect_error", symbol=position.symbol, error=describe(exc))
         return bool(changes)
 
     # Reconciliation.
@@ -321,7 +327,7 @@ class Engine:
                     self.store.put_position(symbol, known)
                 await self._ensure_single_stop(known, position, account)
             except EXCHANGE_ERRORS as exc:
-                self.store.log("reconcile_error", symbol=symbol, error=str(exc))
+                self.store.log("reconcile_error", symbol=symbol, error=describe(exc))
 
         # Orders on symbols without a position (stops left after a close, stray orders).
         flat_symbols = (
@@ -332,7 +338,7 @@ class Engine:
                 await self.exchange.cancel_all(symbol)
                 self.store.log("orphan_orders_cancelled", symbol=symbol)
             except EXCHANGE_ERRORS as exc:
-                self.store.log("reconcile_error", symbol=symbol, error=str(exc))
+                self.store.log("reconcile_error", symbol=symbol, error=describe(exc))
 
     async def _ensure_single_stop(
         self, known: ManagedPosition, position: Position, account: AccountState
@@ -344,7 +350,7 @@ class Engine:
             try:
                 restored = await self.executor.place_stop(known, info)
             except EXCHANGE_ERRORS as exc:
-                self.store.log("stop_failed", symbol=known.symbol, error=str(exc))
+                self.store.log("stop_failed", symbol=known.symbol, error=describe(exc))
                 await self.executor.close(
                     known.symbol, known.side, position.qty, reason="stop could not be restored"
                 )
@@ -375,7 +381,7 @@ class Engine:
             try:
                 status, result = await self._run_command(command, now)
             except Exception as exc:  # a bad command must not stop the loop
-                status, result = "error", {"error": f"{type(exc).__name__}: {exc}"}
+                status, result = "error", {"error": describe(exc)}
             self.store.complete(command.id, status, result)
             self.store.log(
                 "command", id=command.id, kind=command.kind, status=status, result=result
@@ -474,7 +480,7 @@ class Engine:
         try:
             position = await self.executor.enter(intent, decision, info, target=target)
         except EntryFailed as exc:
-            return "error", {"error": str(exc)}
+            return "error", {"error": describe(exc)}
         self.store.put_position(symbol, position)
         self.store.put("window", record_trade(window))
         # The next entry in this tick must see this position: its limits and the open-risk
